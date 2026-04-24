@@ -614,105 +614,159 @@ window.buscarComparables = async function(){
   const sel = window.SEL||{};
   if(!sel.prov){ st.textContent='Selecciona primero una provincia.'; return; }
 
-  // Check we have a key
+  // Check we have an API key
   let cfg = {};
   try{ cfg = JSON.parse(localStorage.getItem('return_config_v1')||'{}'); }catch(e){}
-  const key = cfg.groqKey||cfg.openaiKey||cfg.anthKey||'';
-  if(!key){ st.textContent='Configura una API key en la pestaña Importar.'; return; }
-  const provider = cfg.groqKey?'groq':cfg.openaiKey?'openai':'anthropic';
+  const provider = cfg.groqKey?'groq':cfg.openaiKey?'openai':cfg.anthKey?'anthropic':null;
+  if(!provider){
+    st.textContent='Configura una API key en la pestaña Importar.';
+    st.style.color='#dc2626';
+    return;
+  }
+  const key = cfg[{groq:'groqKey',openai:'openaiKey',anthropic:'anthKey'}[provider]];
 
   btn.disabled=true; btn.textContent='Buscando...';
-  st.textContent='Obteniendo anuncios de Idealista...'; st.style.color='#aaa';
   res.innerHTML='';
 
-  try{
-    // Build Idealista URL for the zone
-    const {m,b,s} = getD();
-    const slugData = m ? (s||b||m) : null;
-    const slug = slugData&&m ? m.slug||'' : '';
-    const sup = F.sup||65;
-    const habsFiltro = window.S._habs ? `&habitaciones=${window.S._habs}` : '';
+  // ─── SLUGS POR PORTAL ──────────────────────────────────────────────
+  // Cada portal usa sus propios formatos de URL
+  const munSlug = (sel.mun||sel.prov||'').toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+                    .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const provSlug = (sel.prov||'').toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+                    .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 
-    // Try to get listings via Jina
-    const baseUrl = slug
-      ? `https://www.idealista.com/venta-viviendas/${slug}/`
-      : `https://www.idealista.com/venta-viviendas/${encodeURIComponent((sel.mun||sel.prov||'').toLowerCase().replace(/ /g,'-'))}-${encodeURIComponent((sel.prov||'').toLowerCase().replace(/ /g,'-'))}/`;
-
-    st.textContent='Leyendo resultados de Idealista...';
-    let rawText = '';
-
-    try{
-      const c1 = new AbortController();
-      setTimeout(()=>c1.abort(), 15000);
-      const r = await fetch('https://r.jina.ai/' + baseUrl, {
-        headers:{'Accept':'text/plain','X-Return-Format':'markdown'},
-        signal: c1.signal
-      });
-      if(r.ok) rawText = (await r.text()).substring(0, 8000);
-    }catch(e){ console.log('Jina error:', e.message); }
-
-    if(!rawText || rawText.length < 200){
-      st.textContent='No se pudo acceder a Idealista para esta zona.';
-      res.innerHTML = '<div class="note-card" style="color:#d97706;border-color:#fcd34d;background:#fffbeb">No se han podido obtener comparables reales. Se mantiene la estimación por mercado zonal.</div>';
-      btn.disabled=false; btn.textContent='\uD83D\uDD0D Buscar comparables en Idealista';
-      return;
+  // Fuentes a probar en orden: de más específica a más permisiva
+  const fuentes = [
+    {
+      nombre: 'Fotocasa',
+      url: `https://www.fotocasa.es/es/comprar/viviendas/${munSlug}/todas-las-zonas/l`,
+      patron: 'fotocasa'
+    },
+    {
+      nombre: 'Pisos.com',
+      url: `https://www.pisos.com/venta/pisos-${munSlug}/`,
+      patron: 'pisos'
+    },
+    {
+      nombre: 'Habitaclia',
+      url: `https://www.habitaclia.com/viviendas-${munSlug}.htm`,
+      patron: 'habitaclia'
+    },
+    {
+      nombre: 'Idealista',
+      url: `https://www.idealista.com/venta-viviendas/${munSlug}-${provSlug}/`,
+      patron: 'idealista'
     }
+  ];
 
-    st.textContent='Extrayendo comparables con IA...';
+  let rawText = '';
+  let fuenteOk = null;
 
-    const prompt = `Eres experto en valoración inmobiliaria residencial española (metodología RICS).
-Analiza este texto de Idealista y extrae hasta 8 anuncios comparables de pisos/apartamentos en venta.
-Si no hay datos reales suficientes del texto, devuelve {"comparables":[],"estadisticas":{"pm2_min":0,"pm2_max":0,"pm2_medio":0,"pm2_mediana":0,"n":0}} sin inventar datos.
+  // ─── INTENTAR CADA FUENTE HASTA CONSEGUIR DATOS ────────────────────
+  for(const f of fuentes){
+    st.textContent='Intentando con '+f.nombre+'...';
+    st.style.color='#aaa';
+    try{
+      const c = new AbortController();
+      setTimeout(()=>c.abort(), 12000);
+      const r = await fetch('https://r.jina.ai/' + f.url, {
+        headers:{'Accept':'text/plain','X-Return-Format':'markdown'},
+        signal: c.signal
+      });
+      if(r.ok){
+        const txt = (await r.text()).substring(0, 10000);
+        // Validar que tenga contenido útil (precios, m²)
+        const hasPrices = /\d[\d.,]{2,}\s*(?:€|EUR|euros?)/i.test(txt);
+        const hasM2 = /\d+\s*m[²2]/i.test(txt);
+        if(txt.length > 400 && hasPrices && hasM2){
+          rawText = txt;
+          fuenteOk = f.nombre;
+          break;
+        }
+      }
+    }catch(e){ 
+      console.log('Fallo en '+f.nombre+':', e.message);
+    }
+  }
 
-Zona: ${sel.mun||sel.prov||sel.prov} (${sel.bar||''})
-Superficie referencia: ${sup} m²
+  if(!rawText){
+    res.innerHTML = '<div class="note-card" style="color:#d97706;border-color:#fcd34d;background:#fffbeb">No se han podido obtener comparables reales de ninguna fuente (Idealista, Fotocasa, Pisos.com, Habitaclia). Los portales están bloqueando el acceso automatizado. Se mantiene la estimación por mercado zonal.</div>';
+    st.textContent=''; btn.disabled=false; btn.textContent='\uD83D\uDD0D Reintentar';
+    return;
+  }
 
-Devuelve SOLO JSON válido sin texto adicional:
+  st.textContent='Extrayendo comparables con IA desde '+fuenteOk+'...';
+
+  // ─── EXTRACCIÓN CON IA (SIN INVENTAR) ──────────────────────────────
+  const sup = window.F?.sup || 65;
+  const prompt = `Eres experto en valoración inmobiliaria residencial española.
+Analiza ESTRICTAMENTE el texto proporcionado (de ${fuenteOk}) y extrae hasta 10 anuncios comparables de pisos/apartamentos en venta.
+
+REGLAS CRÍTICAS:
+- SOLO extrae datos que aparezcan literalmente en el texto
+- NO inventes ni estimes datos que no estén presentes
+- Si no hay datos suficientes, devuelve {"comparables":[],"estadisticas":{}}
+- pm2 debe calcularse como precio/superficie si ambos están disponibles
+
+Zona: ${sel.mun||sel.prov} ${sel.bar?'('+sel.bar+')':''}
+Superficie de referencia: ${sup} m²
+
+Devuelve SOLO JSON válido sin texto adicional ni backticks:
 {"comparables":[
-  {"direccion":"Calle X, nº Y","precio":150000,"superficie":65,"pm2":2307,"habitaciones":3,"banos":1,"planta":"2ª","ascensor":true,"estado":"buen estado","antiguedad":1985,"fuente":"Idealista"}
-],"estadisticas":{"pm2_min":0,"pm2_max":0,"pm2_medio":0,"pm2_mediana":0,"n":0}}
+  {"direccion":"string","precio":number,"superficie":number,"pm2":number,"habitaciones":number,"banos":number,"planta":"string","ascensor":boolean,"estado":"string","antiguedad":number,"fuente":"${fuenteOk}"}
+],"estadisticas":{"pm2_min":number,"pm2_max":number,"pm2_medio":number,"pm2_mediana":number,"n":number}}
 
 TEXTO:
-${rawText.substring(0,5000)}`;
+${rawText.substring(0,6000)}`;
 
-    let raw = '';
+  let raw = '';
+  try{
     if(provider==='groq'){
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.groqKey},
-        body:JSON.stringify({model:'llama-3.1-8b-instant',messages:[{role:'user',content:prompt}],max_tokens:1500,temperature:0.2})
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body:JSON.stringify({model:'llama-3.1-8b-instant',messages:[{role:'user',content:prompt}],max_tokens:1800,temperature:0.1})
       });
-      if(r.ok) raw = (await r.json()).choices?.[0]?.message?.content||'';
+      if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Error Groq');}
+      raw = (await r.json()).choices?.[0]?.message?.content||'';
     } else if(provider==='openai'){
       const r = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.openaiKey},
-        body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:1500})
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:1800,temperature:0.1})
       });
-      if(r.ok) raw = (await r.json()).choices?.[0]?.message?.content||'';
+      if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Error OpenAI');}
+      raw = (await r.json()).choices?.[0]?.message?.content||'';
     } else {
       const r = await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':cfg.anthKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1800,messages:[{role:'user',content:prompt}]})
       });
-      if(r.ok) raw = (await r.json()).content?.[0]?.text||'';
+      if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Error Claude');}
+      raw = (await r.json()).content?.[0]?.text||'';
     }
 
     const m2 = raw.match(/\{[\s\S]*\}/);
     if(!m2) throw new Error('Sin JSON en respuesta');
     const data = JSON.parse(m2[0]);
     const comps = data.comparables||[];
-    const stats = data.estadisticas||{};
 
     if(!comps.length){
-      res.innerHTML = '<div class="note-card" style="color:#d97706;border-color:#fcd34d;background:#fffbeb">No se han podido obtener comparables reales de Idealista para esta zona. Se mantiene la estimación por mercado zonal.</div>';
-      st.textContent=''; btn.disabled=false; btn.textContent='\uD83D\uDD0D Buscar comparables';
+      res.innerHTML = '<div class="note-card" style="color:#d97706;border-color:#fcd34d;background:#fffbeb">Se leyó '+fuenteOk+' pero no se pudieron extraer comparables estructurados. Se mantiene la estimación por mercado zonal.</div>';
+      st.textContent=''; btn.disabled=false; btn.textContent='\uD83D\uDD0D Reintentar';
       return;
     }
 
-    // Recalculate stats from actual data
+    // Estadísticas reales a partir de los datos extraídos
     const pm2s = comps.map(c=>c.pm2||Math.round(c.precio/c.superficie)).filter(x=>x>0);
+    if(!pm2s.length){
+      res.innerHTML = '<div class="note-card" style="color:#d97706;border-color:#fcd34d;background:#fffbeb">Los comparables extraídos no tienen datos de precio/superficie válidos.</div>';
+      st.textContent=''; btn.disabled=false; btn.textContent='\uD83D\uDD0D Reintentar';
+      return;
+    }
     const pm2min = Math.min(...pm2s);
     const pm2max = Math.max(...pm2s);
     const pm2med = Math.round(pm2s.reduce((a,b)=>a+b,0)/pm2s.length);
@@ -721,69 +775,67 @@ ${rawText.substring(0,5000)}`;
       ? Math.round((sorted[sorted.length/2-1]+sorted[sorted.length/2])/2)
       : sorted[Math.floor(sorted.length/2)];
 
-    // Store for use in valuation
-    window._comparables = {comps, pm2min, pm2max, pm2med, pm2median, zona: sel.mun||sel.prov};
+    window._comparables = {comps, pm2min, pm2max, pm2med, pm2median, zona: sel.mun||sel.prov, fuente: fuenteOk};
 
-    // Render table
-    const ef2 = n => n>0 ? new Intl.NumberFormat('es-ES').format(Math.round(n))+' €' : '—';
+    const ef2 = n => n>0 ? new Intl.NumberFormat('es-ES').format(Math.round(n))+' \u20ac' : '\u2014';
     res.innerHTML = `
       <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 12px;margin-bottom:8px">
-        <div style="font-size:11px;font-weight:500;color:#15803d;margin-bottom:6px">${comps.length} comparables · ${sel.mun||sel.prov} ${sel.bar?'· '+sel.bar:''}</div>
+        <div style="font-size:11px;font-weight:500;color:#15803d;margin-bottom:6px">${comps.length} comparables reales \u00b7 ${sel.mun||sel.prov} ${sel.bar?'\u00b7 '+sel.bar:''} \u00b7 Fuente: ${fuenteOk}</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
-          <div style="text-align:center"><div style="font-size:10px;color:#aaa">Mín €/m²</div><div style="font-size:14px;font-weight:600;font-family:'Courier New',monospace">${pm2min.toLocaleString('es-ES')}</div></div>
-          <div style="text-align:center"><div style="font-size:10px;color:#aaa">Máx €/m²</div><div style="font-size:14px;font-weight:600;font-family:'Courier New',monospace">${pm2max.toLocaleString('es-ES')}</div></div>
-          <div style="text-align:center"><div style="font-size:10px;color:#aaa">Media €/m²</div><div style="font-size:16px;font-weight:700;font-family:'Courier New',monospace;color:#15803d">${pm2med.toLocaleString('es-ES')}</div></div>
-          <div style="text-align:center"><div style="font-size:10px;color:#aaa">Mediana €/m²</div><div style="font-size:14px;font-weight:600;font-family:'Courier New',monospace">${pm2median.toLocaleString('es-ES')}</div></div>
+          <div style="text-align:center"><div style="font-size:10px;color:#aaa">M\u00edn \u20ac/m\u00b2</div><div style="font-size:14px;font-weight:600;font-family:'Courier New',monospace">${pm2min.toLocaleString('es-ES')}</div></div>
+          <div style="text-align:center"><div style="font-size:10px;color:#aaa">M\u00e1x \u20ac/m\u00b2</div><div style="font-size:14px;font-weight:600;font-family:'Courier New',monospace">${pm2max.toLocaleString('es-ES')}</div></div>
+          <div style="text-align:center"><div style="font-size:10px;color:#aaa">Media \u20ac/m\u00b2</div><div style="font-size:16px;font-weight:700;font-family:'Courier New',monospace;color:#15803d">${pm2med.toLocaleString('es-ES')}</div></div>
+          <div style="text-align:center"><div style="font-size:10px;color:#aaa">Mediana \u20ac/m\u00b2</div><div style="font-size:14px;font-weight:600;font-family:'Courier New',monospace">${pm2median.toLocaleString('es-ES')}</div></div>
         </div>
       </div>
       <div style="overflow-x:auto;border-radius:6px;border:1px solid #e5e5e0">
         <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:system-ui,-apple-system,sans-serif">
           <thead>
             <tr style="background:#f4f4f0">
-              <th style="padding:6px 8px;text-align:left;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">Dirección</th>
+              <th style="padding:6px 8px;text-align:left;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">Direcci\u00f3n</th>
               <th style="padding:6px 8px;text-align:right;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">Precio</th>
-              <th style="padding:6px 8px;text-align:right;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">m²</th>
-              <th style="padding:6px 8px;text-align:right;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0;font-weight:700">€/m²</th>
+              <th style="padding:6px 8px;text-align:right;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">m\u00b2</th>
+              <th style="padding:6px 8px;text-align:right;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">\u20ac/m\u00b2</th>
               <th style="padding:6px 8px;text-align:center;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">Hab</th>
               <th style="padding:6px 8px;text-align:center;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">Planta</th>
               <th style="padding:6px 8px;text-align:left;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">Estado</th>
-              <th style="padding:6px 8px;text-align:center;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">Año</th>
+              <th style="padding:6px 8px;text-align:center;color:#555;font-weight:500;border-bottom:1px solid #e5e5e0">A\u00f1o</th>
             </tr>
           </thead>
           <tbody>
             ${comps.map((c,i)=>{
-              const pm2c = c.pm2||Math.round(c.precio/c.superficie);
+              const pm2c = c.pm2||Math.round((c.precio||0)/(c.superficie||1));
               const pm2col = pm2c<=pm2med*0.9?'#16a34a':pm2c>=pm2med*1.1?'#dc2626':'#1a1a1a';
               return `<tr style="${i%2?'background:#fafaf8':''}">
-                <td style="padding:6px 8px;color:#555;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.direccion||''}">${c.direccion||'—'}</td>
+                <td style="padding:6px 8px;color:#555;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${sanitize(c.direccion||'')}">${sanitize(c.direccion||'\u2014')}</td>
                 <td style="padding:6px 8px;text-align:right;font-family:'Courier New',monospace">${ef2(c.precio)}</td>
-                <td style="padding:6px 8px;text-align:right;font-family:'Courier New',monospace">${c.superficie||'—'}</td>
+                <td style="padding:6px 8px;text-align:right;font-family:'Courier New',monospace">${c.superficie||'\u2014'}</td>
                 <td style="padding:6px 8px;text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${pm2col}">${pm2c.toLocaleString('es-ES')}</td>
-                <td style="padding:6px 8px;text-align:center">${c.habitaciones||'—'}</td>
-                <td style="padding:6px 8px;text-align:center">${c.planta||'—'}${c.ascensor?'🛗':''}</td>
-                <td style="padding:6px 8px;color:#888;font-size:10px">${c.estado||'—'}</td>
-                <td style="padding:6px 8px;text-align:center;color:#aaa">${c.antiguedad||'—'}</td>
+                <td style="padding:6px 8px;text-align:center">${c.habitaciones||'\u2014'}</td>
+                <td style="padding:6px 8px;text-align:center">${sanitize(c.planta||'\u2014')}${c.ascensor?' \ud83d\udec7':''}</td>
+                <td style="padding:6px 8px;color:#888;font-size:10px">${sanitize(c.estado||'\u2014')}</td>
+                <td style="padding:6px 8px;text-align:center;color:#aaa">${c.antiguedad||'\u2014'}</td>
               </tr>`;
             }).join('')}
           </tbody>
         </table>
       </div>
       <div style="font-size:10px;color:#bbb;margin-top:6px;line-height:1.5">
-        Fuente: Idealista (lectura automática vía Jina AI). Datos orientativos. Verde = por debajo de la media · Rojo = por encima.
-        <button onclick="aplicarMediaComparables(${pm2med})" style="margin-left:8px;padding:3px 8px;border:1px solid #ba7517;border-radius:4px;background:#fff;font-size:10px;cursor:pointer;color:#ba7517">Usar media (${pm2med.toLocaleString('es-ES')} €/m²) como base</button>
+        Fuente: ${fuenteOk} (lectura via Jina AI). Verde = por debajo de la media \u00b7 Rojo = por encima.
+        <button onclick="aplicarMediaComparables(${pm2med})" style="margin-left:8px;padding:3px 8px;border:1px solid #ba7517;border-radius:4px;background:#fff;font-size:10px;cursor:pointer;color:#ba7517">Usar media (${pm2med.toLocaleString('es-ES')} \u20ac/m\u00b2) como base</button>
       </div>`;
 
-    st.textContent=''; 
-    btn.textContent='🔄 Actualizar comparables';
+    st.textContent='\u2713 '+comps.length+' comparables de '+fuenteOk;
+    st.style.color='#16a34a';
+    btn.textContent='\uD83D\uDD04 Actualizar comparables';
 
   }catch(e){
-    st.textContent='Error: '+e.message; st.style.color='#dc2626';
-    btn.textContent='🔍 Buscar comparables en Idealista';
+    st.textContent='Error IA: '+e.message; st.style.color='#dc2626';
+    btn.textContent='\uD83D\uDD0D Reintentar';
     console.error('comparables error:', e);
   }
   btn.disabled=false;
 };
-
 window.aplicarMediaComparables = function(pm2med){
   // Override GEO base price with comparable median
   window._comparablesOverride = pm2med;
@@ -800,4 +852,3 @@ window.clearImport=function(){
 // ═══════════════════════════════════════════════════════
 // § 11 · PORTFOLIO  —  casos de inversión
 // ═══════════════════════════════════════════════════════
-
