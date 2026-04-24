@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Return — Analizador de inversión inmobiliaria</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="styles.css">
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ba7517">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Return">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+</head>
+<body>
+<div class="app">
+<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.7</span>
+<button id="pwa-install-btn" onclick="installPWA()" style="display:none;margin-left:auto;padding:5px 12px;border:1px solid #ba7517;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#ba7517;font-weight:500">+ Añadir a inicio</button></div>
+<div class="tabs">
+  <button class="tab active" data-tab="ap" onclick="sw('ap',this)">Activo</button>
+  <button class="tab" data-tab="mp" onclick="sw('mp',this)">Mercado</button>
+  <button class="tab" data-tab="pp" onclick="sw('pp',this)">Presupuesto</button>
+  <button class="tab" data-tab="fp" onclick="sw('fp',this)">Flip</button>
+  <button class="tab" data-tab="bp" onclick="sw('bp',this)">Buy to rent</button>
+  <button class="tab" data-tab="ip" onclick="sw('ip',this)">Importar</button>
+  <button class="tab" data-tab="pp2" onclick="sw('pp2',this);loadPortfolio()">Portfolio</button>
+</div>
+<div id="ap" class="panel active"><div class="g2"><div id="si"></div><div id="sr"></div></div></div>
+<div id="mp" class="panel"><div class="g2"><div id="mi"></div><div id="mr"></div></div></div>
+<div id="pp" class="panel"><div id="presupuesto"></div></div>
+<div id="fp" class="panel"><div class="g2"><div id="fi"></div><div id="fr"></div></div></div>
+<div id="bp" class="panel"><div class="g2"><div id="bi"></div><div id="br"></div></div></div>
+<div id="ip" class="panel"><div id="ip-content"></div></div>
+<div id="pp2" class="panel"><div id="pp2-content"></div></div>
+</div>
+
+<!-- Dependencias externas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<!-- Módulos de la app — orden de carga importante -->
+<script src="geo-data.js"></script>
+<script src="finance.js"></script>
+<script src="app.js"></script>
+<script src="market.js"></script>
+<script src="portfolio.js"></script>
+<script src="storage.js"></script>
+<script src="import.js"></script>
+
+<!-- Arranque: render inicial después de que todos los módulos hayan cargado -->
+<script>
+// window._appInit se llama desde DOMContentLoaded, garantizando que
+// geo-data.js, finance.js, app.js, market.js, portfolio.js, storage.js e import.js
+// ya están cargados y ejecutados.
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    // Restaurar estado guardado (localStorage)
+    if (typeof autoRestore === 'function') autoRestore();
+    // Render de pestañas
+    if (typeof rSI === 'function') rSI();
+    if (typeof rSR === 'function') rSR();
+    if (typeof rPresupuesto === 'function') rPresupuesto();
+    if (typeof rFI === 'function') rFI();
+    if (typeof rFR === 'function') rFR();
+    if (typeof rBI === 'function') rBI();
+    if (typeof rBR === 'function') rBR();
+  } catch(e) {
+    console.error('_appInit error:', e);
+  }
+});
+</script>
+
+<!-- PWA: Service Worker e instalación -->
+<script>
+
+// Registrar Service Worker para PWA
+// PWA Install prompt
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('pwa-install-btn');
+  if(btn) btn.style.display = '';
+});
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('pwa-install-btn');
+  if(btn) btn.style.display = 'none';
+  deferredPrompt = null;
+});
+window.installPWA = async function(){
+  if(!deferredPrompt){ 
+    alert('Para instalar en iPhone:\n1. Pulsa el botón compartir (□↑) en Safari\n2. Selecciona "Añadir a pantalla de inicio"');
+    return;
+  }
+  deferredPrompt.prompt();
+  const result = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  const btn = document.getElementById('pwa-install-btn');
+  if(btn) btn.style.display = 'none';
+};
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js').then(reg=>{
+      console.log('SW registrado:', reg.scope);
+      // Notificar si hay actualización disponible
+      reg.addEventListener('updatefound', ()=>{
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', ()=>{
+          if(newWorker.state==='installed' && navigator.serviceWorker.controller){
+            if(confirm('Hay una nueva versión disponible. ¿Actualizar?')){
+              newWorker.postMessage('skipWaiting');
+              window.location.reload();
+            }
+          }
+        });
+      });
+    }).catch(err=>console.log('SW error:', err));
+  });
+}
+
+</script>
+</body>
+</html>
