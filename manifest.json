@@ -1,0 +1,38 @@
+{
+  "name": "Return — Inversión Inmobiliaria",
+  "short_name": "Return",
+  "description": "Analizador de inversión inmobiliaria. Flip, Buy to rent, presupuesto y portfolio.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9f9f7",
+  "theme_color": "#ba7517",
+  "orientation": "portrait-primary",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "utilities", "business"],
+  "shortcuts": [
+    {
+      "name": "Activo",
+      "url": "/return_v2_tres_pestanas.html#activo",
+      "description": "Datos del activo"
+    },
+    {
+      "name": "Portfolio",
+      "url": "/return_v2_tres_pestanas.html#portfolio",
+      "description": "Ver portfolio de casos"
+    }
+  ]
+}
