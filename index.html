@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Return — Analizador de inversión inmobiliaria</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="styles.css?v=2.14">
+<link rel="stylesheet" href="styles.css?v=2.15">
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ba7517">
@@ -17,7 +17,7 @@
 </head>
 <body>
 <div class="app">
-<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.14</span>
+<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.15</span>
 <button id="pwa-install-btn" onclick="installPWA()" style="display:none;margin-left:auto;padding:5px 12px;border:1px solid #ba7517;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#ba7517;font-weight:500">+ Añadir a inicio</button></div>
 <div class="tabs">
   <button class="tab active" data-tab="ap" onclick="sw('ap',this)">Activo</button>
@@ -43,16 +43,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
 <!-- Módulos de la app — orden de carga importante -->
-<script src="geo-data.js?v=2.14"></script>
-<script src="finance.js?v=2.14"></script>
-<script src="app.js?v=2.14"></script>
-<script src="market.js?v=2.14"></script>
-<script src="portfolio.js?v=2.14"></script>
-<script src="storage.js?v=2.14"></script>
-<script src="tracking-hotfix-v214.js?v=2.14"></script>
-<script src="tracking.js?v=2.14"></script>
-<script src="state-patch.js?v=2.14"></script>
-<script src="import.js?v=2.14"></script>
+<script src="geo-data.js?v=2.15"></script>
+<script src="finance.js?v=2.15"></script>
+<script src="app.js?v=2.15"></script>
+<script src="market.js?v=2.15"></script>
+<script src="portfolio.js?v=2.15"></script>
+<script src="storage.js?v=2.15"></script>
+<script src="tracking-hotfix-v214.js?v=2.15"></script>
+<script src="tracking.js?v=2.15"></script>
+<script src="tracking-ux-v215.js?v=2.15"></script>
+<script src="state-patch.js?v=2.15"></script>
+<script src="import.js?v=2.15"></script>
 
 <!-- Arranque: render inicial después de que todos los módulos hayan cargado -->
 <script>
@@ -100,7 +101,7 @@ window.installPWA = async function(){
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('/sw.js?v=2.14').then(reg=>{
+    navigator.serviceWorker.register('/sw.js?v=2.15').then(reg=>{
       console.log('SW registrado:', reg.scope);
       reg.addEventListener('updatefound', ()=>{
         const newWorker = reg.installing;
