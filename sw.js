@@ -1,71 +1,90 @@
-const CACHE_NAME = 'return-app-v32';
+const CACHE_NAME = 'return-app-v33';
 
 const LOCAL_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
-  '/tracking.js',
-  '/tracking-apply.js',
-  '/data/watchlist.json',
-  '/data/watchlist-manresa.json',
-  '/data/watchlist-san-juan.json',
-  '/data/watchlist-solvia.json',
   '/icon-192.png',
   '/icon-512.png'
 ];
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(LOCAL_ASSETS)));
+const APP_ASSETS = [
+  '/',
+  '/index.html',
+  '/styles.css',
+  '/geo-data.js',
+  '/finance.js',
+  '/app.js',
+  '/market.js',
+  '/portfolio.js',
+  '/storage.js',
+  '/tracking.js',
+  '/state-patch.js',
+  '/import.js',
+  '/data/watchlist.json',
+  '/data/watchlist-manresa.json',
+  '/data/watchlist-san-juan.json',
+  '/data/watchlist-solvia.json'
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(LOCAL_ASSETS.concat(APP_ASSETS))));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-  ));
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))));
   self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+function shouldPassThrough(url) {
+  return url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('accounts.google.com') ||
+    url.hostname.includes('api.github.com');
+}
 
-  if (url.hostname.includes('googleapis.com') ||
-      url.hostname.includes('openai.com') ||
-      url.hostname.includes('anthropic.com') ||
-      url.hostname.includes('generativelanguage.google') ||
-      url.hostname.includes('accounts.google.com')) {
+function isAppCode(url) {
+  return url.pathname === '/' ||
+    url.pathname.endsWith('/index.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    (url.pathname.includes('/data/watchlist') && url.pathname.endsWith('.json'));
+}
+
+function networkFirst(request) {
+  return fetch(request).then(response => {
+    if (response && response.status === 200) {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+    }
+    return response;
+  }).catch(() => caches.match(request).then(cached => cached || caches.match('/index.html')));
+}
+
+function cacheFirst(request) {
+  return caches.match(request).then(cached => {
+    if (cached) return cached;
+    return fetch(request).then(response => {
+      if (response && response.status === 200) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+      }
+      return response;
+    });
+  });
+}
+
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  if (shouldPassThrough(url)) return;
+  if (event.request.method !== 'GET') return;
+
+  if (isAppCode(url)) {
+    event.respondWith(networkFirst(event.request));
     return;
   }
 
-  if (url.pathname.includes('/data/watchlist') && url.pathname.endsWith('.json')) {
-    e.respondWith(
-      fetch(e.request).then(response => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const toCache = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, toCache));
-        }
-        return response;
-      }).catch(() => caches.match(e.request))
-    );
-    return;
-  }
-
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(response => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const toCache = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, toCache));
-        }
-        return response;
-      }).catch(() => {
-        if (e.request.destination === 'document') return caches.match('/index.html');
-      });
-    })
-  );
+  event.respondWith(cacheFirst(event.request));
 });
 
-self.addEventListener('message', e => {
-  if (e.data === 'skipWaiting') self.skipWaiting();
+self.addEventListener('message', event => {
+  if (event.data === 'skipWaiting') self.skipWaiting();
 });
