@@ -315,7 +315,7 @@ function renderTracking(el){
             }).join('')}</tbody>
           </table>
         </div>
-        <div style="font-size:10px;color:#aaa;margin-top:8px;line-height:1.5">Las pestañas separan tus zonas de búsqueda. La calle sale de `street/address/title`; planta y ascensor aparecen como columnas independientes. El “tiempo mercado” es orientativo y debe ajustarse con revisiones reales.</div>
+        <div style="font-size:10px;color:#aaa;margin-top:8px;line-height:1.5">Las pestañas separan tus zonas de búsqueda. La calle sale de los campos street, address o title; planta y ascensor aparecen como columnas independientes. El “tiempo mercado” es orientativo y debe ajustarse con revisiones reales.</div>
       `}
     </div>`;
 }
