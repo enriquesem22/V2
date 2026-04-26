@@ -17,7 +17,7 @@
 </head>
 <body>
 <div class="app">
-<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.8</span>
+<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.9</span>
 <button id="pwa-install-btn" onclick="installPWA()" style="display:none;margin-left:auto;padding:5px 12px;border:1px solid #ba7517;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#ba7517;font-weight:500">+ Añadir a inicio</button></div>
 <div class="tabs">
   <button class="tab active" data-tab="ap" onclick="sw('ap',this)">Activo</button>
@@ -26,6 +26,7 @@
   <button class="tab" data-tab="fp" onclick="sw('fp',this)">Flip</button>
   <button class="tab" data-tab="bp" onclick="sw('bp',this)">Buy to rent</button>
   <button class="tab" data-tab="ip" onclick="sw('ip',this)">Importar</button>
+  <button class="tab" data-tab="tp" onclick="sw('tp',this);loadTracking()">Tracking</button>
   <button class="tab" data-tab="pp2" onclick="sw('pp2',this);loadPortfolio()">Portfolio</button>
 </div>
 <div id="ap" class="panel active"><div class="g2"><div id="si"></div><div id="sr"></div></div></div>
@@ -34,6 +35,7 @@
 <div id="fp" class="panel"><div class="g2"><div id="fi"></div><div id="fr"></div></div></div>
 <div id="bp" class="panel"><div class="g2"><div id="bi"></div><div id="br"></div></div></div>
 <div id="ip" class="panel"><div id="ip-content"></div></div>
+<div id="tp" class="panel"><div id="tp-content"></div></div>
 <div id="pp2" class="panel"><div id="pp2-content"></div></div>
 </div>
 
@@ -47,12 +49,13 @@
 <script src="market.js"></script>
 <script src="portfolio.js"></script>
 <script src="storage.js"></script>
+<script src="tracking.js"></script>
 <script src="import.js"></script>
 
 <!-- Arranque: render inicial después de que todos los módulos hayan cargado -->
 <script>
 // window._appInit se llama desde DOMContentLoaded, garantizando que
-// geo-data.js, finance.js, app.js, market.js, portfolio.js, storage.js e import.js
+// geo-data.js, finance.js, app.js, market.js, portfolio.js, storage.js, tracking.js e import.js
 // ya están cargados y ejecutados.
 document.addEventListener('DOMContentLoaded', function() {
   try {

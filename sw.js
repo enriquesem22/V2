@@ -1,7 +1,10 @@
-const CACHE_NAME = 'return-app-v28';
+const CACHE_NAME = 'return-app-v29';
 const ASSETS = [
   '/',
+  '/index.html',
   '/manifest.json',
+  '/tracking.js',
+  '/data/watchlist.json',
   '/icon-192.png',
   '/icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
@@ -17,7 +20,9 @@ self.addEventListener('install', e => {
       // Cachear assets locales (los externos pueden fallar, no pasa nada)
       return cache.addAll([
         '/index.html',
-        '/manifest.json'
+        '/manifest.json',
+        '/tracking.js',
+        '/data/watchlist.json'
       ]);
     })
   );
@@ -45,6 +50,20 @@ self.addEventListener('fetch', e => {
       url.hostname.includes('generativelanguage.google') ||
       url.hostname.includes('accounts.google.com')) {
     return; // Dejar pasar sin interceptar
+  }
+
+  // Watchlist base: intentar red primero para recibir cambios nuevos
+  if (url.pathname.endsWith('/data/watchlist.json')) {
+    e.respondWith(
+      fetch(e.request).then(response => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const toCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, toCache));
+        }
+        return response;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
   }
 
   // Assets locales: cache-first con fallback a red
