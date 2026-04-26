@@ -1,4 +1,4 @@
-const CACHE_NAME = 'return-app-v30';
+const CACHE_NAME = 'return-app-v31';
 
 const LOCAL_ASSETS = [
   '/',
@@ -8,33 +8,26 @@ const LOCAL_ASSETS = [
   '/data/watchlist.json',
   '/data/watchlist-manresa.json',
   '/data/watchlist-san-juan.json',
+  '/data/watchlist-solvia.json',
   '/icon-192.png',
   '/icon-512.png'
 ];
 
-// Instalar: cachear archivos locales principales
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(LOCAL_ASSETS))
-  );
+  e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(LOCAL_ASSETS)));
   self.skipWaiting();
 });
 
-// Activar: limpiar caches viejas
 self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
-  );
+  e.waitUntil(caches.keys().then(keys =>
+    Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+  ));
   self.clients.claim();
 });
 
-// Fetch: cache-first para assets locales, network-first para APIs y watchlists
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // APIs externas: siempre red
   if (url.hostname.includes('googleapis.com') ||
       url.hostname.includes('openai.com') ||
       url.hostname.includes('anthropic.com') ||
@@ -43,7 +36,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Watchlists base: red primero para recibir cambios nuevos
   if (url.pathname.includes('/data/watchlist') && url.pathname.endsWith('.json')) {
     e.respondWith(
       fetch(e.request).then(response => {
@@ -57,7 +49,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Assets locales: cache-first con fallback a red
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -68,9 +59,7 @@ self.addEventListener('fetch', e => {
         }
         return response;
       }).catch(() => {
-        if (e.request.destination === 'document') {
-          return caches.match('/index.html');
-        }
+        if (e.request.destination === 'document') return caches.match('/index.html');
       });
     })
   );
