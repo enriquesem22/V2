@@ -296,8 +296,9 @@ function renderPortfolio(el){
             <div style="font-size:14px;font-weight:500;margin-bottom:2px;color:#1a1a1a">${c.name}</div>
             <div style="font-size:11px;color:#aaa">${c.date}${locStr?' · '+locStr:''}</div>
           </div>
-          <div style="display:flex;gap:6px;flex-shrink:0">
+          <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
             <button onclick="loadCase(${i})" style="padding:6px 14px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#555;font-weight:500">Cargar</button>
+            <button onclick="exportCasePDF(${i})" title="Exportar informe PDF" style="padding:6px 10px;border:1px solid #ba7517;border-radius:6px;background:#fffaf3;font-size:11px;cursor:pointer;color:#ba7517;font-weight:600">PDF</button>
             <button onclick="addNoteCase(${i})" title="Nota" style="padding:6px 10px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;font-size:12px;cursor:pointer;color:#aaa">📝</button>
             <button onclick="deleteCase(${i})" style="padding:6px 10px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;font-size:12px;cursor:pointer;color:#dc2626">✕</button>
           </div>
@@ -438,6 +439,52 @@ window.addNoteCase=function(i){const cases=getPortfolio();const n=prompt('Nota:'
 window.exportPortfolio=function(){const b=new Blob([JSON.stringify(getPortfolio(),null,2)],{type:'application/json'});const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(b),download:'return_portfolio_'+new Date().toISOString().slice(0,10)+'.json'});a.click();};
 window.importPortfolioFile=function(){document.getElementById('import-file-input')?.click();};
 window.handleImportFile=function(input){const f=input.files[0];if(!f)return;const reader=new FileReader();reader.onload=function(e){try{const imp=JSON.parse(e.target.result);if(!Array.isArray(imp))throw new Error('Formato incorrecto');savePortfolio([...imp,...getPortfolio()]);window.loadPortfolio();alert('✓ '+imp.length+' caso(s) importados');}catch(err){alert('Error: '+err.message);}};reader.readAsText(f);};
+
+function casePdfMoney(n){return isFinite(n)&&n!==null?new Intl.NumberFormat('es-ES',{maximumFractionDigits:0}).format(Math.round(n))+' €':'—';}
+function casePdfPct(n,d){d=d===undefined?1:d;return isFinite(n)&&!isNaN(n)?Number(n).toFixed(d)+'%':'—';}
+function casePdfEsc(v){if(v===null||v===undefined)return '';return String(v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
+function casePdfRows(rows){return rows.map(function(r){return '<tr><td>'+casePdfEsc(r[0])+'</td><td>'+casePdfEsc(r[1])+'</td></tr>';}).join('');}
+
+window.exportCasePDF=function(i){
+  var c=getPortfolio()[i];
+  if(!c){alert('No encuentro este caso.');return;}
+  var S=c.S||{}, F=c.F||{}, B=c.B||{}, flip=(c.resultado&&c.resultado.flip)||{}, btr=(c.resultado&&c.resultado.btr)||{}, imp=c.importData||{};
+  var reforma=c.presupuesto>0?c.presupuesto:(F.rm2||0)*(F.sup||0);
+  var inversion=(S.pc||0)+(reforma||0);
+  var loc=[c.loc&&c.loc.sub,c.loc&&(c.loc.bar||c.loc._barrio),c.loc&&(c.loc.mun||c.loc._municipio),c.loc&&(c.loc.prov||c.loc._provincia)].filter(Boolean).join(' · ');
+  var url=imp.url||imp.link||S._url||'';
+  var photos=(c.fotos||[]).filter(function(f){return f&&f.b64;}).slice(0,4);
+  var partidas=[];
+  (c.CATS||[]).forEach(function(cat){
+    (cat.items||[]).forEach(function(it){
+      if(it&&it.on){partidas.push([cat.n, it.d, it.u, it.q, it.p, (+it.q||0)*(+it.p||0)]);}
+    });
+  });
+  partidas.sort(function(a,b){return b[5]-a[5];});
+  var topPartidas=partidas.slice(0,12).map(function(p){return '<tr><td>'+casePdfEsc(p[0])+'</td><td>'+casePdfEsc(p[1])+'</td><td>'+casePdfEsc(p[3]+' '+p[2])+'</td><td>'+casePdfMoney(p[4])+'</td><td>'+casePdfMoney(p[5])+'</td></tr>';}).join('');
+
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+casePdfEsc(c.name)+' - Return</title><style>'+
+    '@page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:0;background:#fff;font-size:12px;line-height:1.35}.page{max-width:900px;margin:0 auto}.top{display:flex;justify-content:space-between;gap:18px;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:16px}.brand{font-size:22px;font-weight:700}.sub{color:#777;font-size:11px;margin-top:3px}.title{font-size:20px;font-weight:700;margin:0 0 4px}.loc{color:#777}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.kpi{border:1px solid #ddd;border-radius:8px;padding:10px;background:#fafafa}.kpi .l{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.03em}.kpi .v{font-size:18px;font-weight:700;margin-top:4px}.ok{color:#15803d}.warn{color:#b45309}.bad{color:#dc2626}.sec{margin-top:16px;page-break-inside:avoid}.sec h2{font-size:14px;margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid #ddd}table{width:100%;border-collapse:collapse}td,th{padding:7px 8px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}th{background:#f4f4f0;font-size:10px;color:#555;text-transform:uppercase}td:nth-child(2),td:last-child{text-align:right}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:14px}.note{background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;color:#92400e}.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.photos img{width:100%;height:105px;object-fit:cover;border-radius:8px;border:1px solid #ddd}.small{font-size:10px;color:#777}.footer{margin-top:22px;border-top:1px solid #ddd;padding-top:8px;color:#777;font-size:10px}.printbtn{position:fixed;right:18px;top:18px;padding:9px 14px;border:1px solid #1a1a1a;border-radius:8px;background:#1a1a1a;color:#fff;cursor:pointer}@media print{.printbtn{display:none}.page{max-width:none}}'+
+    '</style></head><body><button class="printbtn" onclick="window.print()">Guardar como PDF</button><div class="page">'+
+    '<div class="top"><div><div class="brand">Return</div><div class="sub">Informe de inversión inmobiliaria</div></div><div style="text-align:right"><h1 class="title">'+casePdfEsc(c.name)+'</h1><div class="loc">'+casePdfEsc(c.date||'')+(loc?' · '+casePdfEsc(loc):'')+'</div></div></div>'+
+    '<div class="grid"><div class="kpi"><div class="l">Compra</div><div class="v">'+casePdfMoney(S.pc)+'</div></div><div class="kpi"><div class="l">Reforma</div><div class="v">'+casePdfMoney(reforma)+'</div></div><div class="kpi"><div class="l">Inversión total</div><div class="v">'+casePdfMoney(inversion)+'</div></div><div class="kpi"><div class="l">Superficie</div><div class="v">'+(F.sup?casePdfEsc(F.sup+' m²'):'—')+'</div></div></div>'+
+    '<div class="grid"><div class="kpi"><div class="l">ROI flip</div><div class="v '+((flip.rc||0)>=20?'ok':(flip.rc||0)>=10?'warn':'bad')+'">'+casePdfPct(flip.rc)+'</div></div><div class="kpi"><div class="l">Margen neto flip</div><div class="v '+((flip.mn||0)>0?'ok':'bad')+'">'+casePdfMoney(flip.mn)+'</div></div><div class="kpi"><div class="l">Yield BTR neta</div><div class="v '+((btr.rn||0)>=7?'ok':(btr.rn||0)>=5?'warn':'bad')+'">'+casePdfPct(btr.rn)+'</div></div><div class="kpi"><div class="l">Cash on cash</div><div class="v">'+casePdfPct(btr.coc)+'</div></div></div>'+
+    (photos.length?'<div class="sec"><h2>Fotos</h2><div class="photos">'+photos.map(function(f){return '<img src="'+f.b64+'">';}).join('')+'</div></div>':'')+
+    '<div class="twocol"><div class="sec"><h2>Datos del activo</h2><table>'+casePdfRows([['Dirección',S._direccion||imp.direccion||c.name],['Ubicación',loc||'—'],['Precio compra',casePdfMoney(S.pc)],['Superficie',F.sup?F.sup+' m²':'—'],['Habitaciones',imp.habitaciones||'—'],['Baños',imp.banos||'—'],['Planta',imp.planta||'—'],['Ascensor',imp.ascensor===true?'Sí':imp.ascensor===false?'No':'—'],['Estado',imp.estado||'—'],['Año construcción',imp.ano_construccion||'—'],['URL anuncio',url||'—']])+'</table></div>'+
+    '<div class="sec"><h2>Hipótesis principales</h2><table>'+casePdfRows([['ITP',casePdfPct(S.itp)],['Notaría/registro/gestoría',casePdfPct(S.not)],['Due diligence',casePdfMoney(S.dd)],['Honorarios agencia',casePdfPct(S.hon)],['Financiación',S.fin?'Sí':'No'],['LTV',casePdfPct(S.ltv)],['Tipo interés',casePdfPct(S.ti)],['Plazo hipoteca',S.hip?S.hip+' años':'—'],['Alquiler mensual',casePdfMoney(B.rnt)],['Vacancia',casePdfPct(B.vac)],['IBI anual',casePdfMoney(B.ibi)],['Comunidad anual',casePdfMoney(B.com)]])+'</table></div></div>'+
+    '<div class="twocol"><div class="sec"><h2>Resultado Flip</h2><table>'+casePdfRows([['Venta estimada',casePdfMoney(F.pv)],['Coste total proyecto',casePdfMoney(flip.tot)],['Capital requerido',casePdfMoney(flip.cr)],['Margen neto',casePdfMoney(flip.mn)],['ROI sobre capital',casePdfPct(flip.rc)],['Rentabilidad anualizada',casePdfPct(flip.ra)]])+'</table></div>'+
+    '<div class="sec"><h2>Resultado Buy to Rent</h2><table>'+casePdfRows([['Renta bruta anual',casePdfPct(btr.rb)],['Yield neta',casePdfPct(btr.rn)],['Cash on cash',casePdfPct(btr.coc)],['Beneficio neto anual',casePdfMoney(btr.bn)],['Cash flow anual',casePdfMoney(btr.cf)],['Coste total',casePdfMoney(btr.tot)]])+'</table></div></div>'+
+    (topPartidas?'<div class="sec"><h2>Principales partidas de reforma</h2><table><thead><tr><th>Categoría</th><th>Partida</th><th>Cantidad</th><th>€/ud</th><th>Total</th></tr></thead><tbody>'+topPartidas+'</tbody></table><div class="small">Se muestran las 12 partidas activas de mayor importe. Presupuesto total guardado: '+casePdfMoney(c.presupuesto||reforma)+'.</div></div>':'')+
+    (c.notas||imp.notas_inversor?'<div class="sec"><h2>Notas</h2><div class="note">'+casePdfEsc([c.notas,imp.notas_inversor].filter(Boolean).join('\n\n')).replace(/\n/g,'<br>')+'</div></div>':'')+
+    '<div class="footer">Informe generado desde Return el '+new Date().toLocaleDateString('es-ES')+'. Datos orientativos según hipótesis guardadas en el caso.</div>'+
+    '<script>setTimeout(function(){window.print();},400);<\/script></div></body></html>';
+
+  var w=window.open('', '_blank');
+  if(!w){alert('El navegador ha bloqueado la ventana emergente. Permite pop-ups para exportar el PDF.');return;}
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+};
 
 // ─── GITHUB STORAGE ──────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════
