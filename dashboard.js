@@ -439,10 +439,6 @@ function renderModal(asset) {
     '</div></div>';
 }
 
-function closeModal() {
-  var el = document.getElementById('dash-modal-overlay');
-  if (el) el.remove();
-}
 
 window.runAIFill = async function(mode) {
   if (typeof window.analyzeTextForAsset !== 'function') {
@@ -680,30 +676,38 @@ async function saveFromModal(existingId) {
   showDashToast('Guardado en GitHub - ' + (data.title || data.id), true);
 }
 
-function attachModalEvents() {
-  var ov = document.getElementById('dash-modal-overlay');
-  if (!ov) return;
-  ov.addEventListener('click', function(e) { if (e.target === ov) closeModal(); });
-  var close = document.getElementById('dash-modal-close');
-  if (close) close.addEventListener('click', closeModal);
-  var cancel = document.getElementById('dash-modal-cancel');
-  if (cancel) cancel.addEventListener('click', closeModal);
-  var save = document.getElementById('dash-modal-save');
-  if (save) save.addEventListener('click', function() {
-    saveFromModal(save.getAttribute('data-id') || null);
+function closeModal() {
+  document.querySelectorAll('#dash-modal-overlay').forEach(function(el) { el.remove(); });
+}
+
+function openModal(asset) {
+  // Eliminar TODOS los modales existentes antes de crear uno nuevo
+  closeModal();
+
+  // Crear el elemento directamente (evita el problema de getElementById con duplicados)
+  var tmp = document.createElement('div');
+  tmp.innerHTML = renderModal(asset);
+  var ov = tmp.firstElementChild;
+  document.body.appendChild(ov);
+
+  // Enganchamos eventos al ov concreto, nunca a getElementById
+  ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
+  var btnClose  = ov.querySelector('#dash-modal-close');
+  var btnCancel = ov.querySelector('#dash-modal-cancel');
+  var btnSave   = ov.querySelector('#dash-modal-save');
+  if (btnClose)  btnClose.addEventListener('click',  function() { ov.remove(); });
+  if (btnCancel) btnCancel.addEventListener('click', function() { ov.remove(); });
+  if (btnSave)   btnSave.addEventListener('click', function() {
+    saveFromModal(btnSave.getAttribute('data-id') || null);
   });
 }
 
-function openAddAsset() {
-  document.body.insertAdjacentHTML('beforeend', renderModal({}));
-  attachModalEvents();
-}
+function openAddAsset() { openModal({}); }
 
 window.openEditAsset = function(id) {
   var asset = getDashboardAssets().find(function(a) { return a.id === id; });
   if (!asset) return;
-  document.body.insertAdjacentHTML('beforeend', renderModal(asset));
-  attachModalEvents();
+  openModal(asset);
 };
 
 // ── IMPORT FROM WATCHLIST ──────────────────────────────────────────────────────
