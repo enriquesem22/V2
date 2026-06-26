@@ -967,8 +967,10 @@ window.openAssetDetail = function(id) {
   // Renderizar ficha
   renderAssetDetail(asset);
 
-  // Mostrar TODAS las pestañas (contexto de activo)
-  document.querySelectorAll('#main-tabs .tab').forEach(function(t) { t.style.display = ''; });
+  // Mostrar pestañas de activo (todas menos Importar)
+  document.querySelectorAll('#main-tabs .tab').forEach(function(t) {
+    t.style.display = (t.getAttribute('data-tab') === 'ip') ? 'none' : '';
+  });
 
   // Navegar a Ficha
   if (typeof window.sw === 'function') window.sw('adp', document.querySelector('.tab[data-tab="adp"]'));

@@ -817,6 +817,13 @@ window.openSettings = function(){
     '<span id="cfg-ai-status" style="font-size:11px;color:#16a34a;margin-left:10px"></span>' +
     '</div>' +
 
+    // Importar
+    '<div style="padding:16px 20px;border-bottom:1px solid #f0f0ea">' +
+    '<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">Importar activos</div>' +
+    '<div style="font-size:11px;color:#888;margin-bottom:10px;line-height:1.5">Importa activos desde ficheros JSON o mediante IA.</div>' +
+    '<button onclick="(function(){var o=document.getElementById(\'settings-modal-overlay\');if(o)o.remove();var t=document.querySelector(\'.tab[data-tab=\\\"ip\\\"]\');if(t){t.style.display=\'\';if(typeof sw===\'function\')sw(\'ip\',t);}})();" style="padding:7px 14px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">Ir a Importar →</button>' +
+    '</div>' +
+
     // Criterios de búsqueda
     '<div style="padding:16px 20px">' +
     '<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">Criterios de búsqueda</div>' +
