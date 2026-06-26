@@ -1,0 +1,23 @@
+{
+  "id": "idealista_111827327",
+  "lastUpdated": "2026-06-26",
+  "title": "Idealista 111827327",
+  "source": "Idealista",
+  "url": "https://www.idealista.com/inmueble/111827327/",
+  "city": "",
+  "neighborhood": "",
+  "price": null,
+  "surface": null,
+  "rooms": null,
+  "condition": "",
+  "stage": "analizando",
+  "priority": "C",
+  "contactedAgent": false,
+  "contactDate": null,
+  "visitDate": null,
+  "offerAmount": null,
+  "lat": null,
+  "lng": null,
+  "notes": "Ficha creada desde ChatGPT con la URL de Idealista. No he podido leer la pagina del anuncio desde el navegador en esta sesion, asi que queda pendiente completar datos exactos: direccion/zona, precio, superficie, habitaciones, estado, planta, ascensor y coordenadas. Cuando pegues el texto del anuncio o una captura, actualizo esta misma ficha con el analisis de flip y lat/lng.",
+  "createdAt": "2026-06-26"
+}
