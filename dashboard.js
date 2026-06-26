@@ -220,14 +220,15 @@ function renderPipeline(assets) {
 function renderRow(asset, i) {
   var pm2 = (asset.price && asset.surface) ? Math.round(asset.price / asset.surface).toLocaleString('es-ES') + ' €/m²' : '—';
 
-  // Flip cell
-  var flip = calcFlip(asset);
+  // Flip cell (misma fórmula que la pestaña Flip)
+  var flip = flipResult(asset);
   var flipCell;
-  if (flip) {
-    var roiColor = flip.roi >= 20 ? '#16a34a' : flip.roi >= 10 ? '#d97706' : '#dc2626';
+  if (flip && isFinite(flip.rc)) {
+    var roi = Math.round(flip.rc);
+    var roiColor = roi >= 25 ? '#16a34a' : roi >= 15 ? '#d97706' : '#dc2626';
     flipCell =
-      '<div style="font-size:13px;font-weight:600;color:' + roiColor + ';line-height:1.2">' + flip.roi + '%</div>' +
-      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(flip.profit) + '</div>';
+      '<div style="font-size:13px;font-weight:600;color:' + roiColor + ';line-height:1.2">' + roi + '%</div>' +
+      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(Math.round(flip.mn)) + '</div>';
   } else {
     flipCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
   }
@@ -854,25 +855,44 @@ function calcBTR(asset) {
   return { annualGross: annualGross, annualNet: annualNet, roi: roi };
 }
 
-function calcFlip(asset) {
-  var p = parseFloat(asset.price), m2 = parseFloat(asset.surface);
-  if (!isFinite(p) || !isFinite(m2) || p <= 0 || m2 <= 0) return null;
-  var refMap = { a_reformar: 550, segunda_mano: 150, buen_estado: 50, reformado: 0, obra_nueva: 0 };
-  var refPm2 = refMap[asset.condition] !== undefined ? refMap[asset.condition] : 300;
-  var buyC   = Math.round(p * 0.11);
-  var refC   = Math.round(m2 * refPm2);
-  var total  = p + buyC + refC;
-  var sale   = Math.round(total * 1.25);
-  var profit = sale - total;
-  var roi    = Math.round((profit / total) * 100);
-  return { p: p, m2: m2, ppm2: Math.round(p/m2), refPm2: refPm2, buyC: buyC, refC: refC, total: total, sale: sale, profit: profit, roi: roi };
+// Reforma estimada por estado del inmueble (€/m²) — punto de partida editable en pestaña Flip
+var FLIP_REFORM_BY_CONDITION = { a_reformar: 550, segunda_mano: 150, buen_estado: 50, reformado: 0, obra_nueva: 0 };
+
+// Parámetros S (compra) del asset, con defaults del calculador
+function sFromAsset(asset) {
+  var d = window.S || { itp: 7, not: 1.5, dd: 350, hon: 0, fin: false, ltv: 70, ti: 4.5, hip: 20 };
+  return { pc: parseFloat(asset.price) || 0, itp: d.itp, not: d.not, dd: d.dd, hon: d.hon, fin: d.fin, ltv: d.ltv, ti: d.ti, hip: d.hip };
+}
+
+// Parámetros F (flip) del asset: superficie + reforma estimada por estado + venta estimada
+function flipFromAsset(asset) {
+  var d = window.F || { ct: 15, ind: 2000, pl: 8, gv: 5 };
+  var sup = parseFloat(asset.surface) || 0;
+  var price = parseFloat(asset.price) || 0;
+  var rm2 = FLIP_REFORM_BY_CONDITION[asset.condition];
+  if (rm2 === undefined) rm2 = 300;
+  var invEst = price + price * 0.11 + sup * rm2;        // inversión aproximada
+  var pv = Math.round(invEst * 1.20);                   // venta estimada (editable en pestaña Flip)
+  return { sup: sup, rm2: rm2, ct: d.ct, ind: d.ind, pl: d.pl, pv: pv, gv: d.gv };
+}
+
+// Resultado del flip usando la MISMA fórmula que la pestaña Flip (cF en finance.js)
+function flipResult(asset) {
+  if (typeof window.cF !== 'function') return null;
+  var s = sFromAsset(asset), f = flipFromAsset(asset);
+  if (!s.pc || !f.sup) return null;
+  var savedPT = window._presupuestoTotal;
+  window._presupuestoTotal = null;                       // la tabla no usa presupuesto detallado
+  var r = null;
+  try { r = window.cF(s, f); } catch(e) {}
+  window._presupuestoTotal = savedPT;
+  return r;
 }
 
 function renderAssetDetail(asset) {
   var el = document.getElementById('adp-content');
   if (!el) return;
 
-  var flip = calcFlip(asset);
   var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls.filter(Boolean) : [];
   var coverSrc = asset.foto_portada || (photos.length ? photos[0] : '');
   var stageC = stageCfg(asset.stage);
@@ -926,28 +946,17 @@ function renderAssetDetail(asset) {
     row('Fecha visita', asset.visitDate, '#8b5cf6') +
     row('Importe oferta', asset.offerAmount ? moneyD(asset.offerAmount) : null, '#ef4444');
 
-  // ── Análisis flip (estimación rápida — para análisis completo usar pestaña Flip) ──
-  var flipBody;
-  if (flip) {
-    var roiColor = flip.roi >= 20 ? '#16a34a' : flip.roi >= 10 ? '#d97706' : '#dc2626';
-    flipBody =
-      '<div style="font-size:10px;color:#aaa;margin-bottom:8px;font-style:italic">Estimación rápida · <button onclick="(function(){var t=document.querySelector(\'.tab[data-tab=fp]\');if(t&&typeof sw===\'function\')sw(\'fp\',t);})()" style="background:none;border:none;color:#ba7517;cursor:pointer;font-size:10px;padding:0;font-family:inherit">Ver análisis completo en pestaña Flip →</button></div>' +
-      row('Precio de compra', moneyD(flip.p)) +
-      row('Gastos compra (11%)', moneyD(flip.buyC)) +
-      row('Reforma est. (' + flip.refPm2 + ' €/m²)', moneyD(flip.refC)) +
-      '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:2px solid #e5e5e0;margin-top:4px">' +
-        '<span style="font-size:11px;font-weight:600;color:#1a1a1a">Inversión total</span>' +
-        '<span style="font-size:15px;font-weight:700;color:#1a1a1a;font-family:\'Courier New\',monospace">' + moneyD(flip.total) + '</span>' +
-      '</div>' +
-      row('Precio venta est. (×1.25)', moneyD(flip.sale), '#16a34a') +
-      row('Beneficio bruto', moneyD(flip.profit), '#16a34a') +
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;margin-top:4px">' +
-        '<span style="font-size:12px;font-weight:600;color:#555">ROI estimado</span>' +
-        '<span style="font-size:24px;font-weight:700;color:' + roiColor + ';font-family:\'Courier New\',monospace">' + flip.roi + '%</span>' +
-      '</div>';
-  } else {
-    flipBody = '<div style="font-size:11px;color:#aaa">Introduce precio y superficie para calcular el flip.</div>';
-  }
+  // ── Análisis de inversión: enlace a las pestañas auto-completadas (única fuente del cálculo) ──
+  var goTab = function(tab, label, accent) {
+    return '<button onclick="(function(){var t=document.querySelector(\'.tab[data-tab=' + tab + ']\');if(t&&typeof sw===\'function\')sw(\'' + tab + '\',t);})()" ' +
+      'style="flex:1;padding:10px 14px;border:1px solid ' + accent + ';border-radius:8px;background:#fff;color:' + accent + ';cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">' + label + ' →</button>';
+  };
+  var invBody =
+    '<div style="font-size:12px;color:#666;line-height:1.6;margin-bottom:12px">El precio, superficie y estado de este activo se han cargado automáticamente en las pestañas de análisis. Ábrelas para ver y ajustar el cálculo completo.</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      goTab('fp', 'Análisis Flip', '#ba7517') +
+      goTab('bp', 'Buy to Rent', '#16a34a') +
+    '</div>';
 
   // ── Notas ──
   var notasBody = asset.notes
@@ -991,7 +1000,7 @@ function renderAssetDetail(asset) {
 
       '<div>' +
         card('Pipeline CRM', crmBody) +
-        card('Flip — estimación rápida', flipBody, '#ba7517') +
+        card('Análisis de inversión', invBody, '#ba7517') +
       '</div>' +
 
     '</div>' +
@@ -1005,8 +1014,14 @@ function renderAssetDetail(asset) {
 // Fuente de verdad única: asset → estados S/F/B → todas las pestañas
 // S.pc = precio compra, F.sup = superficie (únicos campos que existen en los calculadores)
 function populateCalculatorsFromAsset(asset) {
-  if (window.S && asset.price)   window.S.pc  = Math.round(asset.price);
-  if (window.F && asset.surface) window.F.sup  = Math.round(asset.surface);
+  if (window.S && asset.price) window.S.pc = Math.round(asset.price);
+  if (window.F) {
+    // Auto-rellenar la pestaña Flip con la estimación (superficie, reforma por estado, venta)
+    var fp = flipFromAsset(asset);
+    if (fp.sup) window.F.sup = fp.sup;
+    window.F.rm2 = fp.rm2;
+    if (fp.pv)  window.F.pv  = fp.pv;
+  }
 
   // Re-renderizar todas las pestañas de análisis
   ['rSI','rSR','rFI','rFR','rBI','rBR','rPresupuesto'].forEach(function(fn) {
