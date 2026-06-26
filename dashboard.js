@@ -12,14 +12,17 @@ function imgProxy(url) {
   return 'https://images.weserv.nl/?url=' + url.replace(/^https?:\/\//, '') + '&w=800&output=jpg&we&maxage=7d';
 }
 
-// Genera <img> con: carga directa → fallback proxy → placeholder texto
+// Genera <img>: 1) URL directa sin Referer, 2) fallback proxy, 3) texto "Sin foto"
 function mkImg(url, style) {
   if (!url) return '';
-  var direct = escD(url);
-  var proxy  = escD(imgProxy(url));
-  var onErr  = "if(this.dataset.tried){this.style='" + style.replace(/'/g,"\\'") +
-    ";background:#f0f0eb;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa';this.removeAttribute('src');this.textContent='Sin foto';}else{this.dataset.tried=1;this.src='" + proxy + "';}";
-  return '<img src="' + direct + '" referrerpolicy="no-referrer"' +
+  // proxy sin escapes HTML — lo usaremos dentro de un string JS con comillas simples
+  var proxyUrl = imgProxy(url).replace(/'/g, '%27');
+  // onErr es código JS puro; se HTML-escapará una sola vez al meterlo en el atributo
+  var onErr = "if(this.dataset.tried){this.setAttribute('style','" +
+    style.replace(/'/g, "\\'") + ";object-fit:cover;background:#f0f0eb');" +
+    "this.removeAttribute('src');this.textContent='Sin foto';" +
+    "}else{this.dataset.tried=1;this.src='" + proxyUrl + "';}";
+  return '<img src="' + escD(url) + '" referrerpolicy="no-referrer"' +
     ' onerror="' + escD(onErr) + '"' +
     ' style="' + style + '">';
 }
@@ -972,12 +975,18 @@ window.openAssetDetail = function(id) {
     t.style.display = (t.getAttribute('data-tab') === 'ip') ? 'none' : '';
   });
 
+  // Poner nombre del asset en la pestaña Ficha
+  var adpTab = document.querySelector('.tab[data-tab="adp"]');
+  if (adpTab) adpTab.textContent = (asset.title || asset.address || 'Ficha').substring(0, 28);
+
   // Navegar a Ficha
-  if (typeof window.sw === 'function') window.sw('adp', document.querySelector('.tab[data-tab="adp"]'));
+  if (typeof window.sw === 'function') window.sw('adp', adpTab);
 };
 
 window.volverAlDashboard = function() {
   document.querySelectorAll('#main-tabs .app-tab').forEach(function(t) { t.style.display = 'none'; });
+  var adpTab = document.querySelector('.tab[data-tab="adp"]');
+  if (adpTab) adpTab.textContent = 'Ficha';
   var dpTab = document.querySelector('.tab[data-tab="dp"]');
   if (typeof window.sw === 'function') window.sw('dp', dpTab);
   if (typeof window.loadDashboard === 'function') window.loadDashboard();
