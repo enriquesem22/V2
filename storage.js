@@ -9,6 +9,7 @@
 const GH_REPO = 'enriquesem22/V2';
 const GH_FILE = 'portfolio.json';
 const GH_STATE_FILE = 'state.json';
+const GH_TOKEN_LS_KEY = 'return_gh_token_v1';
 let ghToken = null;
 
 function setGhStatus(msg, color){ const el=document.getElementById('gh-status'); if(el){el.textContent=msg;el.style.color=color||'#aaa';} }
@@ -20,38 +21,53 @@ function ghHeaders(extra){
   return headers;
 }
 
-window.testGithubToken = async function(){
-  const token = document.getElementById('gh-token')?.value?.trim();
+window.testGithubToken = async function(tokenOverride){
+  const token = tokenOverride || document.getElementById('cfg-gh-token')?.value?.trim() || document.getElementById('gh-token')?.value?.trim();
   if(!token){ alert('Introduce el token de GitHub'); return; }
   setGhStatus('Conectando...','#d97706');
+  var cfgStatus = document.getElementById('cfg-gh-status');
+  if(cfgStatus){ cfgStatus.textContent = 'Conectando...'; cfgStatus.style.color = '#d97706'; }
   try{
     const r = await fetch(`https://api.github.com/repos/${GH_REPO}`,{
       headers:{'Authorization':'Bearer '+token,'Accept':'application/vnd.github.v3+json'}
     });
     if(!r.ok) throw new Error('Token inválido o sin acceso al repositorio');
     ghToken = token;
-    try {
-      const cfg = loadConfig();
-      if (cfg.ghToken) {
-        delete cfg.ghToken;
-        saveConfig(cfg);
-      }
-    } catch(e) {}
+    localStorage.setItem(GH_TOKEN_LS_KEY, token);
     setGhStatus('✓ Conectado a GitHub','#16a34a');
+    if(cfgStatus){ cfgStatus.textContent = '✓ Conectado y guardado'; cfgStatus.style.color = '#16a34a'; }
+    var cfgInput = document.getElementById('cfg-gh-token');
+    if(cfgInput) cfgInput.value = token;
+    updateSettingsGhButtons(true);
     const actions = document.getElementById('gh-actions');
     if(actions) actions.style.display = '';
     if(typeof window.loadDashboard === 'function') window.loadDashboard();
-  }catch(e){ setGhStatus('Error: '+e.message,'#dc2626'); }
+  }catch(e){
+    setGhStatus('Error: '+e.message,'#dc2626');
+    if(cfgStatus){ cfgStatus.textContent = '✗ '+e.message; cfgStatus.style.color = '#dc2626'; }
+  }
 };
 
 window.disconnectGithub = function(){
   ghToken = null;
-  const tokenInput = document.getElementById('gh-token');
-  if(tokenInput) tokenInput.value = '';
+  localStorage.removeItem(GH_TOKEN_LS_KEY);
+  ['gh-token','cfg-gh-token'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value = '';
+  });
   const actions = document.getElementById('gh-actions');
   if(actions) actions.style.display = 'none';
   setGhStatus('Desconectado','#aaa');
+  var cfgStatus = document.getElementById('cfg-gh-status');
+  if(cfgStatus){ cfgStatus.textContent = 'Desconectado'; cfgStatus.style.color = '#aaa'; }
+  updateSettingsGhButtons(false);
 };
+
+function updateSettingsGhButtons(connected){
+  var btnCon = document.getElementById('cfg-gh-connect');
+  var btnDis = document.getElementById('cfg-gh-disconnect');
+  if(btnCon) btnCon.style.display = connected ? 'none' : '';
+  if(btnDis) btnDis.style.display = connected ? '' : 'none';
+}
 
 async function ghGetFile(filename){
   const r = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${filename}`,{
@@ -127,14 +143,15 @@ window.savePortfolio = function(c){
   if(ghToken) setTimeout(window.githubPush, 1000);
 };
 
-// El token de GitHub no se persiste: se usa solo en memoria durante la sesión.
+// Auto-cargar token de GitHub guardado en localStorage
 document.addEventListener('DOMContentLoaded', function(){
-  if (typeof loadConfig !== 'function') return;
   try {
-    const cfg = loadConfig();
-    if(cfg.ghToken){
-      delete cfg.ghToken;
-      saveConfig(cfg);
+    var saved = localStorage.getItem(GH_TOKEN_LS_KEY);
+    if(saved){
+      ghToken = saved;
+      setGhStatus('✓ Conectado a GitHub','#16a34a');
+      var actions = document.getElementById('gh-actions');
+      if(actions) actions.style.display = '';
     }
   } catch(e) {}
 });
@@ -718,6 +735,138 @@ window.githubLoadDashboardAssets = async function() {
 };
 
 window.githubHasDashboardToken = function() { return !!ghToken; };
+
+// ─── MODAL DE AJUSTES ────────────────────────────────────────────────────────
+window.openSettings = function(){
+  var existing = document.getElementById('settings-modal-overlay');
+  if(existing){ existing.remove(); return; }
+
+  var cfg = (typeof loadConfig === 'function') ? loadConfig() : {};
+  var savedToken = localStorage.getItem(GH_TOKEN_LS_KEY) || '';
+  var connected = !!ghToken;
+
+  var ov = document.createElement('div');
+  ov.id = 'settings-modal-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9500;display:flex;align-items:flex-start;justify-content:flex-end;padding:56px 12px 0';
+
+  var provOpts = ['groq','openai','google','anthropic'].map(function(p){
+    var labels = {groq:'Groq (gratis)',openai:'OpenAI',google:'Google Gemini',anthropic:'Anthropic Claude'};
+    return '<option value="'+p+'"'+(cfg.provider===p?' selected':'')+'>'+labels[p]+'</option>';
+  }).join('');
+
+  ov.innerHTML =
+    '<div style="background:#fff;border-radius:14px;padding:0;width:380px;max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22);font-family:system-ui,-apple-system,sans-serif">' +
+
+    // Header
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid #f0f0ea">' +
+    '<div style="font-size:15px;font-weight:600;color:#1a1a1a">⚙ Ajustes</div>' +
+    '<button id="cfg-close" style="border:none;background:none;font-size:20px;cursor:pointer;color:#aaa;line-height:1">×</button>' +
+    '</div>' +
+
+    // GitHub section
+    '<div style="padding:16px 20px;border-bottom:1px solid #f0f0ea">' +
+    '<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">GitHub</div>' +
+    '<div style="font-size:11px;color:#888;margin-bottom:8px;line-height:1.5">Token <em>fine-grained</em> para <strong>enriquesem22/V2</strong> con permiso <strong>Contents: Read &amp; write</strong>. Se guarda en el navegador.</div>' +
+    '<div style="margin-bottom:8px">' +
+    '<input id="cfg-gh-token" type="password" value="'+escapeHtmlAttr(savedToken)+'" placeholder="ghp_..." ' +
+    'style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:12px;font-family:\'Courier New\',monospace;outline:none;box-sizing:border-box;color:#1a1a1a">' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+    '<button id="cfg-gh-connect" style="padding:7px 14px;border:none;border-radius:6px;background:#1a1a1a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500'+(connected?';display:none':'')+'">Conectar y guardar</button>' +
+    '<button id="cfg-gh-disconnect" style="padding:7px 14px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#dc2626;font-size:12px;cursor:pointer;font-family:inherit'+(connected?'':';display:none')+'">Desconectar</button>' +
+    '<span id="cfg-gh-status" style="font-size:11px;color:'+(connected?'#16a34a':'#aaa')+'">'+(connected?'✓ Conectado':'Sin conectar')+'</span>' +
+    '</div>' +
+    '</div>' +
+
+    // IA section
+    '<div style="padding:16px 20px;border-bottom:1px solid #f0f0ea">' +
+    '<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">Inteligencia Artificial</div>' +
+    '<div style="margin-bottom:10px">' +
+    '<div style="font-size:11px;color:#666;margin-bottom:4px">Proveedor</div>' +
+    '<select id="cfg-ai-provider" onchange="cfgToggleProvider()" style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:13px;font-family:inherit;outline:none;background:#fff;cursor:pointer;box-sizing:border-box">' +
+    provOpts + '</select>' +
+    '</div>' +
+    '<div id="cfg-row-groq" style="margin-bottom:8px'+(cfg.provider!=='groq'&&cfg.provider?';display:none':'')+'">'+
+    '<div style="font-size:11px;color:#666;margin-bottom:4px">API Key Groq</div>'+
+    '<input id="cfg-groq-key" type="password" value="'+escapeHtmlAttr(cfg.groqKey||'')+'" placeholder="gsk_..." style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:12px;font-family:\'Courier New\',monospace;outline:none;box-sizing:border-box">'+
+    '</div>' +
+    '<div id="cfg-row-openai" style="margin-bottom:8px;display:'+(cfg.provider==='openai'?'block':'none')+'">'+
+    '<div style="font-size:11px;color:#666;margin-bottom:4px">API Key OpenAI</div>'+
+    '<input id="cfg-openai-key" type="password" value="'+escapeHtmlAttr(cfg.openaiKey||'')+'" placeholder="sk-..." style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:12px;font-family:\'Courier New\',monospace;outline:none;box-sizing:border-box">'+
+    '</div>' +
+    '<div id="cfg-row-google" style="margin-bottom:8px;display:'+(cfg.provider==='google'?'block':'none')+'">'+
+    '<div style="font-size:11px;color:#666;margin-bottom:4px">API Key Google Gemini</div>'+
+    '<input id="cfg-goog-key" type="password" value="'+escapeHtmlAttr(cfg.googKey||'')+'" placeholder="AIza..." style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:12px;font-family:\'Courier New\',monospace;outline:none;box-sizing:border-box">'+
+    '</div>' +
+    '<div id="cfg-row-anth" style="margin-bottom:8px;display:'+(cfg.provider==='anthropic'?'block':'none')+'">'+
+    '<div style="font-size:11px;color:#666;margin-bottom:4px">API Key Anthropic</div>'+
+    '<input id="cfg-anth-key" type="password" value="'+escapeHtmlAttr(cfg.anthKey||'')+'" placeholder="sk-ant-..." style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:12px;font-family:\'Courier New\',monospace;outline:none;box-sizing:border-box">'+
+    '</div>' +
+    '<div style="margin-bottom:8px">' +
+    '<div style="font-size:11px;color:#666;margin-bottom:4px">Proxy URL <span style="color:#bbb">(opcional)</span></div>'+
+    '<input id="cfg-proxy-url" type="url" value="'+escapeHtmlAttr(cfg.proxyUrl||'')+'" placeholder="https://mi-proxy.com/..." style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:12px;font-family:\'Courier New\',monospace;outline:none;box-sizing:border-box">'+
+    '</div>' +
+    '<button onclick="cfgSaveAI()" style="padding:7px 16px;border:none;border-radius:6px;background:#ba7517;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">Guardar IA</button>' +
+    '<span id="cfg-ai-status" style="font-size:11px;color:#16a34a;margin-left:10px"></span>' +
+    '</div>' +
+
+    // Criterios de búsqueda
+    '<div style="padding:16px 20px">' +
+    '<div style="font-size:12px;font-weight:600;color:#555;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">Criterios de búsqueda</div>' +
+    '<button onclick="abrirPrefs()" style="padding:7px 14px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">Editar mis criterios →</button>' +
+    '</div>' +
+
+    '</div>';
+
+  document.body.appendChild(ov);
+
+  // Close handlers
+  document.getElementById('cfg-close').addEventListener('click', function(){ ov.remove(); });
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+
+  // GitHub buttons
+  document.getElementById('cfg-gh-connect').addEventListener('click', function(){
+    window.testGithubToken();
+  });
+  document.getElementById('cfg-gh-disconnect').addEventListener('click', function(){
+    window.disconnectGithub();
+  });
+};
+
+function escapeHtmlAttr(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+window.cfgToggleProvider = function(){
+  var p = document.getElementById('cfg-ai-provider')?.value;
+  ['groq','openai','google','anth'].forEach(function(k){
+    var el = document.getElementById('cfg-row-'+k);
+    if(el) el.style.display = (k===p||(k==='google'&&p==='google')) ? 'block' : 'none';
+  });
+  // google ID fix
+  var goog = document.getElementById('cfg-row-google');
+  if(goog) goog.style.display = (p==='google') ? 'block' : 'none';
+};
+
+window.cfgSaveAI = function(){
+  var p = document.getElementById('cfg-ai-provider')?.value || 'groq';
+  var cfg = (typeof loadConfig === 'function') ? loadConfig() : {};
+  cfg.provider  = p;
+  cfg.groqKey   = (document.getElementById('cfg-groq-key')?.value||'').trim();
+  cfg.openaiKey = (document.getElementById('cfg-openai-key')?.value||'').trim();
+  cfg.googKey   = (document.getElementById('cfg-goog-key')?.value||'').trim();
+  cfg.anthKey   = (document.getElementById('cfg-anth-key')?.value||'').trim();
+  cfg.proxyUrl  = (document.getElementById('cfg-proxy-url')?.value||'').trim();
+  if(typeof saveConfig === 'function') saveConfig(cfg);
+  // Sync también al formulario de la pestaña Importar si está abierta
+  ['ai-provider','groq-key','openai-key','goog-key','anth-key','proxy-url'].forEach(function(id){
+    var src = document.getElementById('cfg-'+id.replace('-key','-key').replace('ai-','ai-'));
+    var dst = document.getElementById(id);
+    if(src && dst) dst.value = src.value;
+  });
+  var st = document.getElementById('cfg-ai-status');
+  if(st){ st.textContent = '✓ Guardado'; setTimeout(function(){ st.textContent=''; }, 2500); }
+};
 
 // ─── RESTAURAR AL CARGAR ──────────────────────────────────────────────
 window.addEventListener('load', function(){
