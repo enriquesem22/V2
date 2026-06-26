@@ -971,6 +971,9 @@ window.loadDashboard = function() {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+  // Ocultar pestañas secundarias al inicio (por si el HTML cacheado no tiene display:none)
+  document.querySelectorAll('.app-tab').forEach(function(t) { t.style.display = 'none'; });
+
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
   if (!_dashboardLoadedFromGitHub) syncDashboardFromGitHub();
