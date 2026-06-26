@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Return — Analizador de inversión inmobiliaria</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="styles.css?v=2.32">
+<link rel="stylesheet" href="styles.css?v=2.33">
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ba7517">
@@ -17,7 +17,7 @@
 </head>
 <body>
 <div class="app">
-<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.32</span>
+<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.33</span>
 <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
   <button id="pwa-install-btn" onclick="installPWA()" style="display:none;padding:5px 12px;border:1px solid #ba7517;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#ba7517;font-weight:500">+ Añadir a inicio</button>
   <button onclick="typeof openSettings==='function'?openSettings():alert('Recarga la página (Ctrl+Shift+R) para cargar los ajustes.')" title="Ajustes" style="padding:5px 10px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;font-size:14px;cursor:pointer;line-height:1;color:#555">⚙</button>
@@ -63,6 +63,7 @@
 <script src="import.js?v=2.25"></script>
 <script src="dashboard.js?v=2.25"></script>
 <script src="investment-unify-patch.js?v=2.31"></script>
+<script src="asset-integrity-patch.js?v=2.33"></script>
 <script src="ai-chat.js?v=2.25"></script>
 
 <!-- Arranque: render inicial después de que todos los módulos hayan cargado -->
