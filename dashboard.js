@@ -219,14 +219,32 @@ function renderPipeline(assets) {
 
 function renderRow(asset, i) {
   var pm2 = (asset.price && asset.surface) ? Math.round(asset.price / asset.surface).toLocaleString('es-ES') + ' €/m²' : '—';
-  var visitCell = asset.visitDate
-    ? '<span style="color:#8b5cf6;font-weight:500">' + asset.visitDate + '</span>'
-    : '<span style="color:#d1d5db">—</span>';
-  var agentCell = asset.contactedAgent
-    ? '<span style="color:#16a34a;font-size:15px">✓</span>' + (asset.contactDate ? '<div style="font-size:9px;color:#aaa">' + asset.contactDate + '</div>' : '')
-    : '<span style="color:#d1d5db;font-size:15px">○</span>';
-  var btnEdit    = '<button data-action="edit-asset"    data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #ba7517;border-radius:5px;background:#fff;color:#ba7517;cursor:pointer;font-size:11px;font-family:inherit">Editar</button>';
-  var btnAnalyze = '<button data-action="analyze-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #16a34a;border-radius:5px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-family:inherit">Ver ficha</button>';
+
+  // Flip cell
+  var flip = calcFlip(asset);
+  var flipCell;
+  if (flip) {
+    var roiColor = flip.roi >= 20 ? '#16a34a' : flip.roi >= 10 ? '#d97706' : '#dc2626';
+    flipCell =
+      '<div style="font-size:13px;font-weight:600;color:' + roiColor + ';line-height:1.2">' + flip.roi + '%</div>' +
+      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(flip.profit) + '</div>';
+  } else {
+    flipCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+  }
+
+  // BTR cell
+  var btr = calcBTR(asset);
+  var btrCell;
+  if (btr) {
+    var btrColor = btr.roi >= 4 ? '#16a34a' : btr.roi >= 2.5 ? '#d97706' : '#dc2626';
+    btrCell =
+      '<div style="font-size:13px;font-weight:600;color:' + btrColor + ';line-height:1.2">' + btr.roi + '%</div>' +
+      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(btr.annualNet) + '/año</div>';
+  } else {
+    btrCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+  }
+
+  var btnAnalyze = '<button data-action="analyze-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #16a34a;border-radius:5px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-family:inherit">Ficha</button>';
   var btnDel     = '<button data-action="delete-asset"  data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #fca5a5;border-radius:5px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:11px;font-family:inherit">×</button>';
 
   var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls : [];
@@ -241,7 +259,7 @@ function renderRow(asset, i) {
       '<div style="display:flex;align-items:center;gap:8px">' +
       thumbHtml +
       '<div>' +
-        '<div data-action="analyze-asset" data-id="' + asset.id + '" style="font-weight:500;color:#ba7517;font-size:12px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" title="Abrir análisis">' + escD(asset.title || asset.address || '—') + '</div>' +
+        '<div data-action="analyze-asset" data-id="' + asset.id + '" style="font-weight:500;color:#ba7517;font-size:12px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" title="Abrir ficha">' + escD(asset.title || asset.address || '—') + '</div>' +
         '<div style="color:#aaa;font-size:10px;margin-top:2px">' + escD(asset.city || '') + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + (asset.surface ? ' · ' + asset.surface + ' m²' : '') + (asset.rooms ? ' · ' + asset.rooms + ' hab.' : '') + '</div>' +
         (asset.url ? '<a href="' + escD(asset.url) + '" target="_blank" rel="noopener" style="font-size:10px;color:#ba7517;text-decoration:none">Ver anuncio ↗</a>' : '') +
       '</div>' +
@@ -249,10 +267,10 @@ function renderRow(asset, i) {
     '</td>' +
     '<td style="padding:8px;text-align:right;font-family:\'Courier New\',monospace;font-weight:600;white-space:nowrap">' + moneyD(asset.price) + '</td>' +
     '<td style="padding:8px;text-align:right;font-family:\'Courier New\',monospace;color:#888;font-size:11px">' + pm2 + '</td>' +
-    '<td style="padding:8px;text-align:center;font-size:11px">' + agentCell + '</td>' +
-    '<td style="padding:8px;text-align:center;font-size:11px">' + visitCell + '</td>' +
+    '<td style="padding:8px;text-align:center">' + flipCell + '</td>' +
+    '<td style="padding:8px;text-align:center">' + btrCell + '</td>' +
     '<td style="padding:8px;text-align:center;white-space:nowrap">' +
-      '<div style="display:flex;gap:4px;justify-content:center">' + btnEdit + btnAnalyze + btnDel + '</div>' +
+      '<div style="display:flex;gap:4px;justify-content:center">' + btnAnalyze + btnDel + '</div>' +
     '</td>' +
     '</tr>';
 }
@@ -277,8 +295,8 @@ function renderTable(assets, showArchived) {
     '<th style="padding:8px;text-align:left">Inmueble</th>' +
     '<th style="padding:8px;text-align:right">Precio</th>' +
     '<th style="padding:8px;text-align:right">€/m²</th>' +
-    '<th style="padding:8px;text-align:center">Contactado</th>' +
-    '<th style="padding:8px;text-align:center">Visita</th>' +
+    '<th style="padding:8px;text-align:center">Flip</th>' +
+    '<th style="padding:8px;text-align:center">BTR</th>' +
     '<th style="padding:8px;text-align:center">Acciones</th>' +
     '</tr></thead>';
 
@@ -789,6 +807,17 @@ async function importFromWatchlist() {
 }
 
 // ── ASSET DETAIL (FICHA) ──────────────────────────────────────────────────────
+
+function calcBTR(asset) {
+  var p = parseFloat(asset.price);
+  if (!isFinite(p) || p <= 0) return null;
+  var buyC       = Math.round(p * 0.10);          // gastos compra ~10%
+  var total      = p + buyC;
+  var annualGross = Math.round(p * 0.05);          // rentabilidad bruta 5% estimada España
+  var annualNet   = Math.round(annualGross * 0.68); // neto tras ~32% gastos (IBI, comunidad, vacíos)
+  var roi        = Math.round((annualNet / total) * 100 * 10) / 10;
+  return { annualGross: annualGross, annualNet: annualNet, roi: roi };
+}
 
 function calcFlip(asset) {
   var p = parseFloat(asset.price), m2 = parseFloat(asset.surface);
