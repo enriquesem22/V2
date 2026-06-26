@@ -5,6 +5,14 @@ var DASHBOARD_VERSION = '1.0';
 var _dashboardAssets = [];
 var _dashboardLoadedFromGitHub = false;
 
+// Proxy de imágenes para evitar bloqueos hotlink (Idealista, Fotocasa, etc.)
+function imgProxy(url) {
+  if (!url) return '';
+  // URLs ya proxificadas o data: no tocar
+  if (url.startsWith('data:') || url.includes('weserv.nl')) return url;
+  return 'https://images.weserv.nl/?url=' + encodeURIComponent(url) + '&w=600&output=jpg&we';
+}
+
 var STAGE_CONFIG = {
   nuevo:             { label: 'Nuevo',              color: '#94a3b8', bg: '#f1f5f9' },
   analizando:        { label: 'Analizando',          color: '#3b82f6', bg: '#eff6ff' },
@@ -210,7 +218,7 @@ function renderRow(asset, i) {
   var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls : [];
   var thumbSrc = asset.foto_portada || (photos.length ? photos[0] : '');
   var thumbHtml = thumbSrc
-    ? '<img src="' + escD(thumbSrc) + '" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block" onerror="this.style.display=\'none\'">'
+    ? '<img src="' + escD(imgProxy(thumbSrc)) + '" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block" onerror="this.style.display=\'none\'">'
     : '';
 
   return '<tr style="background:' + (i % 2 ? '#fafaf8' : '#fff') + ';border-top:1px solid #f0f0ea">' +
@@ -408,7 +416,7 @@ function renderModal(asset) {
     (asset.foto_urls && asset.foto_urls.length ?
       '<div style="margin-top:12px;display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">' +
       asset.foto_urls.slice(0, 8).map(function(u) {
-        return '<img src="' + escD(u) + '" style="width:72px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
+        return '<img src="' + escD(imgProxy(u)) + '" style="width:72px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
       }).join('') +
       '</div>' : '') +
 
@@ -789,7 +797,7 @@ function renderAssetDetail(asset) {
 
   // ── Foto portada ──
   var coverHtml = coverSrc
-    ? '<img src="' + escD(coverSrc) + '" style="width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">'
+    ? '<img src="' + escD(imgProxy(coverSrc)) + '" style="width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">'
     : '';
 
   // ── Strip fotos adicionales ──
@@ -797,7 +805,7 @@ function renderAssetDetail(asset) {
   var photosHtml = extraPhotos.length
     ? '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:thin">' +
       extraPhotos.map(function(u) {
-        return '<img src="' + escD(u) + '" style="height:140px;min-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
+        return '<img src="' + escD(imgProxy(u)) + '" style="height:140px;min-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
       }).join('') + '</div>'
     : '';
 
