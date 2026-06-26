@@ -2,7 +2,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f9f9f7;color:#1a1a1a;min-height:100vh;padding:24px}
 .app{max-width:1200px;margin:0 auto}
-.hdr{display:flex;align-items:baseline;gap:10px;padding-bottom:12px;border-bottom:1px solid #e5e5e0}
+.hdr{display:flex;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid #e5e5e0}
 .hdr-t{font-size:22px;font-weight:500}.hdr-s{font-size:12px;color:#999}
 .tabs{display:flex;border-bottom:1px solid #e5e5e0;margin-bottom:16px;flex-wrap:wrap}
 .tab{padding:10px 16px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;color:#999;border-bottom:2px solid transparent;margin-bottom:-1px}
