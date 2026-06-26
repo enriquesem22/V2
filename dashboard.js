@@ -351,111 +351,143 @@ function opts(list, selected) {
   }).join('');
 }
 
-function renderModal(asset) {
-  var isEdit = !!asset.id;
-
+// Campos compartidos entre modal (añadir) y edición inline en ficha
+function renderFormFields(asset) {
   var stageOpts = Object.keys(STAGE_CONFIG).map(function(s) {
     return '<option value="' + s + '"' + (s === (asset.stage || 'nuevo') ? ' selected' : '') + '>' + STAGE_CONFIG[s].label + '</option>';
   }).join('');
-
   var condOpts = '<option value="">— seleccionar —</option>' + Object.keys(CONDITION_OPTIONS).map(function(k) {
     return '<option value="' + k + '"' + (k === (asset.condition || '') ? ' selected' : '') + '>' + CONDITION_OPTIONS[k] + '</option>';
   }).join('');
-
   var prioOpts = '<option value="">— seleccionar —</option>' + PRIORITY_OPTIONS.map(function(p) {
     return '<option value="' + p + '"' + (p === (asset.priority || 'B') ? ' selected' : '') + '>Prioridad ' + p + '</option>';
   }).join('');
-
   var sourceOpts = '<option value="">— seleccionar —</option>' + opts(SOURCE_OPTIONS, asset.source || 'Idealista');
   var contactedOpts = '<option value="no"' + (!asset.contactedAgent ? ' selected' : '') + '>No</option><option value="yes"' + (asset.contactedAgent ? ' selected' : '') + '>Sí</option>';
-
   var g2 = 'display:grid;grid-template-columns:1fr 1fr;gap:0 14px';
 
-  return '<div id="dash-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px">' +
-    '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22)">' +
-
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
-    '<div style="font-size:17px;font-weight:500;color:#1a1a1a">' + (isEdit ? 'Editar activo' : 'Añadir nuevo activo') + '</div>' +
-    '<button id="dash-modal-close" style="border:none;background:none;font-size:22px;cursor:pointer;color:#aaa;line-height:1;padding:0 4px">×</button>' +
-    '</div>' +
-
-    // AI fill section
+  return (
+    // IA
     '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-bottom:18px">' +
     '<div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:10px">✨ Rellenar campos con IA</div>' +
-
     '<div style="font-size:10px;color:#92400e;margin-bottom:6px;font-weight:500">Opción 1 — Pega el link del anuncio:</div>' +
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
-    '<input id="df-ai-url" type="url" placeholder="https://www.idealista.com/inmueble/..." ' +
-    'style="flex:1;padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:12px;font-family:inherit;outline:none;background:#fff;color:#1a1a1a">' +
-    '<button id="df-ai-btn" onclick="runAIFill(\'url\')" style="padding:8px 14px;border:none;border-radius:6px;background:#d97706;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">Leer y rellenar →</button>' +
+    '<input id="df-ai-url" type="url" placeholder="https://www.idealista.com/inmueble/..." style="flex:1;padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:12px;font-family:inherit;outline:none;background:#fff;color:#1a1a1a">' +
+    '<button onclick="runAIFill(\'url\')" style="padding:8px 14px;border:none;border-radius:6px;background:#d97706;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">Leer y rellenar →</button>' +
     '</div>' +
-
-    '<div style="font-size:10px;color:#92400e;margin-bottom:4px;font-weight:500">Opción 2 — Pega el texto del anuncio directamente:</div>' +
-    '<textarea id="df-ai-text" rows="4" placeholder="Copia y pega aquí el texto del anuncio (Ctrl+A en la página del anuncio, Ctrl+C, y pega aquí)..." ' +
-    'style="width:100%;padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:11px;font-family:inherit;outline:none;background:#fff;color:#1a1a1a;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>' +
-    '<button id="df-ai-txt-btn" onclick="runAIFill(\'text\')" style="padding:7px 14px;border:none;border-radius:6px;background:#92400e;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">Analizar texto →</button>' +
-
+    '<div style="font-size:10px;color:#92400e;margin-bottom:4px;font-weight:500">Opción 2 — Pega el texto del anuncio:</div>' +
+    '<textarea id="df-ai-text" rows="3" placeholder="Ctrl+A en la página del anuncio, Ctrl+C, pega aquí..." style="width:100%;padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:11px;font-family:inherit;outline:none;background:#fff;color:#1a1a1a;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>' +
+    '<button onclick="runAIFill(\'text\')" style="padding:7px 14px;border:none;border-radius:6px;background:#92400e;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">Analizar texto →</button>' +
     '<div id="df-ai-status" style="font-size:11px;color:#92400e;margin-top:8px;min-height:16px;line-height:1.4"></div>' +
     '<div id="df-ai-analysis" style="display:none;margin-top:10px"></div>' +
     '</div>' +
 
+    // Campos
     '<div style="' + g2 + '">' +
-
-    '<div style="grid-column:1/-1">' +
-    mkLabel('Título / Dirección', true) +
-    mkInput('df-title', 'text', asset.title || asset.address || '', 'Calle Mayor nº 12, piso 2º...') +
-    '</div>' +
-
+    '<div style="grid-column:1/-1">' + mkLabel('Título / Dirección', true) + mkInput('df-title', 'text', asset.title || asset.address || '', 'Calle Mayor nº 12, piso 2º...') + '</div>' +
     '<div>' + mkLabel('Fuente') + mkSelect('df-source', sourceOpts) + '</div>' +
     '<div>' + mkLabel('URL del anuncio') + mkInput('df-url', 'url', asset.url || '', 'https://...') + '</div>' +
     '<div>' + mkLabel('Ref. inmobiliaria') + mkInput('df-ref', 'text', asset.ref_code || '', '108701608') + '</div>' +
-
     '<div>' + mkLabel('Ciudad / Municipio') + mkInput('df-city', 'text', asset.city || '', 'Sevilla, Manresa...') + '</div>' +
     '<div>' + mkLabel('Barrio / Zona') + mkInput('df-neighborhood', 'text', asset.neighborhood || '', 'Macarena, Centre...') + '</div>' +
-
     '<div>' + mkLabel('Precio (€)') + mkInput('df-price', 'number', asset.price || '', '120000') + '</div>' +
     '<div>' + mkLabel('Superficie (m²)') + mkInput('df-surface', 'number', asset.surface || '', '65') + '</div>' +
-
     '<div>' + mkLabel('Habitaciones') + mkInput('df-rooms', 'number', asset.rooms || '', '3') + '</div>' +
     '<div>' + mkLabel('Estado del inmueble') + mkSelect('df-condition', condOpts) + '</div>' +
-
     '<div>' + mkLabel('Estado pipeline', true) + mkSelect('df-stage', stageOpts) + '</div>' +
     '<div>' + mkLabel('Prioridad') + mkSelect('df-priority', prioOpts) + '</div>' +
-
     '<div>' + mkLabel('Comercial contactado') + mkSelect('df-contacted', contactedOpts) + '</div>' +
     '<div>' + mkLabel('Fecha de contacto') + mkInput('df-contactDate', 'date', asset.contactDate || '', '') + '</div>' +
-
     '<div>' + mkLabel('Fecha de visita') + mkInput('df-visitDate', 'date', asset.visitDate || '', '') + '</div>' +
     '<div>' + mkLabel('Importe oferta (€)') + mkInput('df-offerAmount', 'number', asset.offerAmount || '', '105000') + '</div>' +
-
     '<div>' + mkLabel('Latitud (mapa)') + mkInput('df-lat', 'number', asset.lat || '', '37.3898') + '</div>' +
     '<div>' + mkLabel('Longitud (mapa)') + mkInput('df-lng', 'number', asset.lng || '', '-5.9938') + '</div>' +
-
-    '<div style="grid-column:1/-1">' + mkLabel('Foto portada (URL)') +
-    mkInput('df-foto-portada', 'url', asset.foto_portada || '', 'https://...') +
-    '</div>' +
-
+    '<div style="grid-column:1/-1">' + mkLabel('Foto portada (URL)') + mkInput('df-foto-portada', 'url', asset.foto_portada || '', 'https://...') + '</div>' +
     '<div style="grid-column:1/-1">' + mkLabel('Notas') +
     '<textarea id="df-notes" placeholder="Observaciones, próximos pasos, pendientes..." style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:13px;font-family:inherit;color:#1a1a1a;outline:none;box-sizing:border-box;height:80px;resize:vertical">' + escD(asset.notes || '') + '</textarea>' +
     '</div>' +
-
     '</div>' +
 
     '<input type="hidden" id="df-foto-urls" value="' + escD(JSON.stringify(asset.foto_urls || [])) + '">' +
-
-    // Photo strip preview (if existing photos)
     (asset.foto_urls && asset.foto_urls.length ?
       '<div style="margin-top:12px;display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">' +
       asset.foto_urls.slice(0, 8).map(function(u) {
         return mkImg(u, 'width:72px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0');
-      }).join('') +
-      '</div>' : '') +
+      }).join('') + '</div>' : '')
+  );
+}
 
+// Modal solo para "Añadir nuevo activo" (no se usa para editar fichas existentes)
+function renderModal(asset) {
+  return '<div id="dash-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px">' +
+    '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22)">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
+    '<div style="font-size:17px;font-weight:500;color:#1a1a1a">Añadir nuevo activo</div>' +
+    '<button id="dash-modal-close" style="border:none;background:none;font-size:22px;cursor:pointer;color:#aaa;line-height:1;padding:0 4px">×</button>' +
+    '</div>' +
+    renderFormFields(asset) +
     '<div style="display:flex;gap:10px;margin-top:22px;justify-content:flex-end">' +
     '<button id="dash-modal-cancel" style="padding:10px 20px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;cursor:pointer;font-family:inherit;font-size:13px">Cancelar</button>' +
-    '<button id="dash-modal-save" data-id="' + escD(asset.id || '') + '" style="padding:10px 22px;border:none;border-radius:8px;background:#ba7517;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500">' + (isEdit ? 'Guardar cambios' : 'Añadir activo') + '</button>' +
+    '<button id="dash-modal-save" data-id="" style="padding:10px 22px;border:none;border-radius:8px;background:#ba7517;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500">Añadir activo</button>' +
     '</div>' +
     '</div></div>';
+}
+
+// Edición inline en la ficha (sin popup)
+function renderAssetEditInline(asset) {
+  var el = document.getElementById('adp-content');
+  if (!el) return;
+
+  var btnStyle = 'padding:8px 18px;border:none;border-radius:8px;background:#ba7517;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500';
+  var cancelStyle = 'padding:8px 16px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;cursor:pointer;font-family:inherit;font-size:13px';
+  var hdr = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #f0f0ea">' +
+    '<div style="font-size:15px;font-weight:600;color:#1a1a1a">Editando — ' + escD(asset.title || 'activo') + '</div>' +
+    '<div style="display:flex;gap:8px">' +
+    '<button id="ife-cancel" style="' + cancelStyle + '">Cancelar</button>' +
+    '<button id="ife-save" style="' + btnStyle + '">Guardar cambios</button>' +
+    '</div></div>';
+
+  el.innerHTML = '<div style="max-width:700px;margin:0 auto;padding:8px 0">' +
+    hdr + renderFormFields(asset) +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid #f0f0ea">' +
+    '<button id="ife-cancel-b" style="' + cancelStyle + '">Cancelar</button>' +
+    '<button id="ife-save-b" style="' + btnStyle + '">Guardar cambios</button>' +
+    '</div></div>';
+
+  async function doSave(btn) {
+    var lbl = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    var data = readForm(asset.id);
+    data.createdAt = asset.createdAt || todayISO();
+    if (!data.foto_portada && asset.foto_portada) data.foto_portada = asset.foto_portada;
+    if (!data.title) {
+      alert('Introduce un título o dirección.');
+      btn.disabled = false; btn.textContent = lbl; return;
+    }
+    var assets = getDashboardAssets();
+    saveDashboardAssets(assets.map(function(a) { return a.id === asset.id ? data : a; }));
+    if (typeof window.githubSaveDashboardAsset === 'function') {
+      var r = await window.githubSaveDashboardAsset(data);
+      if (!r.ok) {
+        alert('Error guardando en GitHub: ' + (r.reason || 'desconocido'));
+        btn.disabled = false; btn.textContent = lbl; return;
+      }
+    }
+    // Actualizar nombre de pestaña
+    var adpTab = document.querySelector('.tab[data-tab="adp"]');
+    if (adpTab) {
+      var tl = (data.title || data.address || 'Ficha').substring(0, 22);
+      if (data.ref_code) tl += ' · ' + data.ref_code;
+      adpTab.textContent = tl;
+    }
+    renderAssetDetail(data);
+    if (typeof showDashToast === 'function') showDashToast('Guardado — ' + (data.title || data.id), true);
+  }
+
+  el.querySelector('#ife-save').addEventListener('click',     function() { doSave(this); });
+  el.querySelector('#ife-save-b').addEventListener('click',   function() { doSave(this); });
+  el.querySelector('#ife-cancel').addEventListener('click',   function() { renderAssetDetail(asset); });
+  el.querySelector('#ife-cancel-b').addEventListener('click', function() { renderAssetDetail(asset); });
 }
 
 
@@ -961,10 +993,9 @@ function renderAssetDetail(asset) {
     '</div>' +
     '</div>';
 
-  // Bind edit button
-  el.querySelector('[data-action="edit-asset"]').addEventListener('click', function() {
-    window.openEditAsset(asset.id);
-  });
+  // Edición inline — sin popup
+  var editBtn = el.querySelector('[data-action="edit-asset"]');
+  if (editBtn) editBtn.addEventListener('click', function() { renderAssetEditInline(asset); });
 }
 
 window.openAssetDetail = function(id) {
@@ -1142,15 +1173,18 @@ function renderDashboard(el) {
     renderDashboard(el);
   });
 
-  el.addEventListener('click', function handler(e) {
-    var btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    var action = btn.getAttribute('data-action');
-    var id = btn.getAttribute('data-id');
-    if (action === 'edit-asset')    window.openEditAsset(id);
-    else if (action === 'delete-asset')  deleteAsset(id);
-    else if (action === 'analyze-asset') analyzeAsset(id);
-  }, { once: false });
+  // Guard: solo añadir el listener delegado una vez por vida del elemento
+  if (!el._dashClickBound) {
+    el._dashClickBound = true;
+    el.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      var id = btn.getAttribute('data-id');
+      if      (action === 'delete-asset')  deleteAsset(id);
+      else if (action === 'analyze-asset') analyzeAsset(id);
+    });
+  }
 
   // Map
   if (!noMap) {
