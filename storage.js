@@ -1,18 +1,24 @@
 // storage.js — Capa de persistencia y sincronización
 // Tres niveles: localStorage (local) → GitHub (remoto) → Google Drive (remoto)
-// La fuente de verdad es siempre localStorage; GitHub y Drive son backends de sync.
+// Dashboard assets: GitHub es la fuente de verdad; se mantienen solo en memoria.
 
 // ─── GITHUB STORAGE ──────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════
 // § 12 · GITHUB STORAGE  —  sincronización
 // ═══════════════════════════════════════════════════════
-const GH_REPO = 'enriquesem22/return-app';
+const GH_REPO = 'enriquesem22/V2';
 const GH_FILE = 'portfolio.json';
 const GH_STATE_FILE = 'state.json';
 let ghToken = null;
 
 function setGhStatus(msg, color){ const el=document.getElementById('gh-status'); if(el){el.textContent=msg;el.style.color=color||'#aaa';} }
 function setGhLastSync(t){ const el=document.getElementById('gh-last-sync'); if(el)el.textContent='Última sync: '+t; }
+
+function ghHeaders(extra){
+  const headers = Object.assign({'Accept':'application/vnd.github.v3+json'}, extra || {});
+  if(ghToken) headers.Authorization = 'Bearer ' + ghToken;
+  return headers;
+}
 
 window.testGithubToken = async function(){
   const token = document.getElementById('gh-token')?.value?.trim();
@@ -24,21 +30,32 @@ window.testGithubToken = async function(){
     });
     if(!r.ok) throw new Error('Token inválido o sin acceso al repositorio');
     ghToken = token;
-    // Save to config
-    const cfg = loadConfig();
-    cfg.ghToken = token;
-    saveConfig(cfg);
+    try {
+      const cfg = loadConfig();
+      if (cfg.ghToken) {
+        delete cfg.ghToken;
+        saveConfig(cfg);
+      }
+    } catch(e) {}
     setGhStatus('✓ Conectado a GitHub','#16a34a');
     const actions = document.getElementById('gh-actions');
     if(actions) actions.style.display = '';
-    // Auto-pull on connect
-    await githubPull();
+    if(typeof window.loadDashboard === 'function') window.loadDashboard();
   }catch(e){ setGhStatus('Error: '+e.message,'#dc2626'); }
+};
+
+window.disconnectGithub = function(){
+  ghToken = null;
+  const tokenInput = document.getElementById('gh-token');
+  if(tokenInput) tokenInput.value = '';
+  const actions = document.getElementById('gh-actions');
+  if(actions) actions.style.display = 'none';
+  setGhStatus('Desconectado','#aaa');
 };
 
 async function ghGetFile(filename){
   const r = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${filename}`,{
-    headers:{'Authorization':'Bearer '+ghToken,'Accept':'application/vnd.github.v3+json'}
+    headers: ghHeaders()
   });
   if(r.status===404) return null;
   if(!r.ok) throw new Error('Error leyendo '+filename+': '+r.status);
@@ -47,11 +64,12 @@ async function ghGetFile(filename){
 }
 
 async function ghPutFile(filename, data, sha){
+  if(!ghToken) throw new Error('no-token');
   const body = { message: 'Update '+filename, content: btoa(unescape(encodeURIComponent(JSON.stringify(data,null,2)))) };
   if(sha) body.sha = sha;
   const r = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${filename}`,{
     method:'PUT',
-    headers:{'Authorization':'Bearer '+ghToken,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+    headers: ghHeaders({'Content-Type':'application/json'}),
     body: JSON.stringify(body)
   });
   if(!r.ok){ const e=await r.json(); throw new Error(e.message||'Error guardando '+filename); }
@@ -109,25 +127,16 @@ window.savePortfolio = function(c){
   if(ghToken) setTimeout(window.githubPush, 1000);
 };
 
-// Restore GitHub token from config on init (deferred: needs loadConfig from import.js)
+// El token de GitHub no se persiste: se usa solo en memoria durante la sesión.
 document.addEventListener('DOMContentLoaded', function(){
   if (typeof loadConfig !== 'function') return;
-  const cfg = loadConfig();
-  if(cfg.ghToken){
-    ghToken = cfg.ghToken;
-    // Restore UI state when import tab opens
-    const origInit = window.initImport;
-    window.initImport = function(){
-      if(origInit) origInit();
-      setTimeout(()=>{
-        const el = document.getElementById('gh-token');
-        if(el && ghToken){ el.value=ghToken; }
-        const actions = document.getElementById('gh-actions');
-        if(actions && ghToken) actions.style.display='';
-        if(ghToken){ setGhStatus('✓ Conectado a GitHub','#16a34a'); githubPull(); }
-      }, 200);
-    };
-  }
+  try {
+    const cfg = loadConfig();
+    if(cfg.ghToken){
+      delete cfg.ghToken;
+      saveConfig(cfg);
+    }
+  } catch(e) {}
 });
 
 // SEL ya inicializado en bloque principal
@@ -672,20 +681,23 @@ window.githubDeleteDashboardAsset = async function(id) {
     if (!existing) return { ok: true };
     var r = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/' + path, {
       method: 'DELETE',
-      headers: { 'Authorization': 'Bearer ' + ghToken, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      headers: ghHeaders({'Content-Type':'application/json'}),
       body: JSON.stringify({ message: 'Delete property: ' + id, sha: existing.sha })
     });
-    return { ok: r.ok };
+    if (!r.ok) {
+      var e = await r.json().catch(function(){ return {}; });
+      return { ok: false, reason: e.message || ('HTTP ' + r.status) };
+    }
+    return { ok: true };
   } catch(e) {
     return { ok: false, reason: e.message };
   }
 };
 
 window.githubLoadDashboardAssets = async function() {
-  if (!ghToken) return null;
   try {
     var r = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/dashboard', {
-      headers: { 'Authorization': 'Bearer ' + ghToken, 'Accept': 'application/vnd.github.v3+json' }
+      headers: ghHeaders()
     });
     if (r.status === 404) return [];
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -694,8 +706,8 @@ window.githubLoadDashboardAssets = async function() {
     for (var i = 0; i < files.length; i++) {
       if (!files[i].name.endsWith('.json')) continue;
       try {
-        var r2 = await fetch(files[i].download_url);
-        if (r2.ok) assets.push(await r2.json());
+        var fileData = await ghGetFile(files[i].path || ('dashboard/' + files[i].name));
+        if (fileData && fileData.content) assets.push(fileData.content);
       } catch(e2) { console.warn('Error loading', files[i].name, e2); }
     }
     return assets;
@@ -727,14 +739,7 @@ window.addEventListener('load', function(){
       setV('anth-key', cfg.anthKey||'');
       setV('proxy-url', cfg.proxyUrl||'');
       setV('drive-client-id', cfg.driveClientId||'');
-      setV('gh-token', cfg.ghToken||'');
       if(cfg.driveClientId) driveClientId = cfg.driveClientId;
-      if(cfg.ghToken){
-        ghToken = cfg.ghToken;
-        var ga = document.getElementById('gh-actions');
-        if(ga) ga.style.display = '';
-        setGhStatus('✓ GitHub configurado (↓ para sincronizar)','#16a34a');
-      }
       try{ toggleProviderFields(); }catch(e){}
     }
   }catch(e){ console.error('init importar:',e); }

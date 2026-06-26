@@ -31,10 +31,8 @@ window.saveApiConfig = function(){
     anthKey:       document.getElementById('anth-key')?.value?.trim() || '',
     proxyUrl:      document.getElementById('proxy-url')?.value?.trim() || '',
     driveClientId: document.getElementById('drive-client-id')?.value?.trim() || '',
-    ghToken:       document.getElementById('gh-token')?.value?.trim() || '',
   };
   if(cfg.driveClientId) driveClientId = cfg.driveClientId;
-  if(cfg.ghToken) ghToken = cfg.ghToken;
   saveConfig(cfg);
   const st = document.getElementById('cfg-status');
   if(st){ st.textContent = '✓ Configuración guardada'; st.style.color='#16a34a'; setTimeout(()=>{st.textContent='';},3000); }
@@ -73,14 +71,7 @@ function initImport(){
   setV('anth-key', cfg.anthKey||'');
   setV('proxy-url', cfg.proxyUrl||'');
   setV('drive-client-id', cfg.driveClientId||'');
-  setV('gh-token', cfg.ghToken||'');
   if(cfg.driveClientId) driveClientId = cfg.driveClientId;
-  if(cfg.ghToken){
-    ghToken = cfg.ghToken;
-    const a = document.getElementById('gh-actions');
-    if(a) a.style.display = '';
-    setGhStatus('✓ GitHub configurado (↓ para sincronizar)','#16a34a');
-  }
   try{ toggleProviderFields(); }catch(e){}
   if(driveToken) updateDriveUI(true);
 }
@@ -160,25 +151,24 @@ function importarHTML(){
         <div style="border-top:1px solid #e5e5e0;margin-top:14px;padding-top:14px">
           <div style="font-size:12px;font-weight:500;color:#555;margin-bottom:8px;display:flex;align-items:center;gap:8px">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-            GitHub — almacenamiento del portfolio
+            GitHub — fichas del Dashboard
           </div>
           <div style="font-size:10px;color:#bbb;line-height:1.5;margin-bottom:10px;padding:8px 10px;background:#f9f9f7;border-radius:6px">
-            Guarda el portfolio en tu repositorio de GitHub. Funciona desde cualquier dispositivo sin necesidad de Google Drive.
+            Las fichas se leen desde <b>dashboard/*.json</b> sin token. Para crear, editar o borrar archivos GitHub exige un token temporal; no se guarda en el navegador.
           </div>
           <div class="irow">
-            <div class="ilbl">Personal Access Token <span style="color:#bbb;font-weight:400">(github.com/settings/tokens)</span></div>
+            <div class="ilbl">Token temporal de GitHub <span style="color:#bbb;font-weight:400">(no se guarda)</span></div>
             <div class="iwrap"><input type="password" id="gh-token" placeholder="ghp_..." style="font-size:12px;font-family:'Courier New',monospace"></div>
           </div>
-          <div style="font-size:10px;color:#bbb;margin:-4px 0 8px">Crea un token en GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic). Marca solo el permiso <b>repo</b>.</div>
+          <div style="font-size:10px;color:#bbb;margin:-4px 0 8px">Usa un token fine-grained para <b>enriquesem22/V2</b> con permiso <b>Contents: Read and write</b>, o un token classic con <b>repo</b>.</div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-            <button onclick="testGithubToken()" style="padding:7px 14px;border:1px solid #1a1a1a;border-radius:6px;background:#1a1a1a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">Conectar GitHub</button>
+            <button onclick="testGithubToken()" style="padding:7px 14px;border:1px solid #1a1a1a;border-radius:6px;background:#1a1a1a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">Conectar esta sesión</button>
             <span id="gh-status" style="font-size:11px;color:#aaa"></span>
           </div>
           <div id="gh-actions" style="display:none;margin-top:8px">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <button onclick="githubPush()" style="padding:6px 12px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#555">↑ Subir a GitHub</button>
-              <button onclick="githubPull()" style="padding:6px 12px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#555">↓ Descargar de GitHub</button>
-              <span id="gh-last-sync" style="font-size:10px;color:#bbb"></span>
+              <span style="font-size:10px;color:#16a34a">Token activo: el Dashboard guardará directamente en GitHub.</span>
+              <button onclick="disconnectGithub()" style="padding:6px 12px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#dc2626">Desconectar</button>
             </div>
           </div>
         </div>

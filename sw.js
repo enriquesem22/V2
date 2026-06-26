@@ -1,4 +1,4 @@
-const CACHE_NAME = 'return-app-v41';
+const CACHE_NAME = 'return-app-v42';
 
 const LOCAL_ASSETS = [
   '/manifest.json',
@@ -19,6 +19,7 @@ const APP_ASSETS = [
   '/tracking-hotfix-v214.js',
   '/tracking.js',
   '/tracking-ux-v215.js',
+  '/tracking-scope-fix.js',
   '/state-patch.js',
   '/import.js',
   '/dashboard.js',

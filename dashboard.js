@@ -2,7 +2,8 @@
 // v1.0: Dashboard con mapa, pipeline, KPIs y formulario de seguimiento CRM
 
 var DASHBOARD_VERSION = '1.0';
-var DASHBOARD_KEY = 'return_dashboard_assets_v1';
+var _dashboardAssets = [];
+var _dashboardLoadedFromGitHub = false;
 
 var STAGE_CONFIG = {
   nuevo:             { label: 'Nuevo',              color: '#94a3b8', bg: '#f1f5f9' },
@@ -46,14 +47,11 @@ function showDashToast(msg, ok) {
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 
 function getDashboardAssets() {
-  try {
-    var raw = JSON.parse(localStorage.getItem(DASHBOARD_KEY) || '[]');
-    return Array.isArray(raw) ? raw : [];
-  } catch (e) { return []; }
+  return _dashboardAssets.slice();
 }
 
 function saveDashboardAssets(assets) {
-  try { localStorage.setItem(DASHBOARD_KEY, JSON.stringify(assets || [])); } catch (e) {}
+  _dashboardAssets = Array.isArray(assets) ? assets.slice() : [];
 }
 
 function newAssetId() {
@@ -593,9 +591,13 @@ function readForm(existingId) {
   };
 }
 
-function saveFromModal(existingId) {
+async function saveFromModal(existingId) {
   var data = readForm(existingId);
   if (!data.title) { alert('Introduce un título o dirección.'); return; }
+  if (typeof window.githubSaveDashboardAsset !== 'function') {
+    alert('GitHub no está disponible todavía. Recarga la página e inténtalo de nuevo.');
+    return;
+  }
 
   var assets = getDashboardAssets();
   if (existingId) {
@@ -607,18 +609,26 @@ function saveFromModal(existingId) {
     assets.unshift(data);
   }
 
+  var saveBtn = document.getElementById('dash-modal-save');
+  var oldLabel = saveBtn ? saveBtn.textContent : '';
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Guardando...'; }
+
+  var result = await window.githubSaveDashboardAsset(data);
+  if (!result.ok) {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = oldLabel; }
+    if (result.reason === 'no-token') {
+      alert('Para guardar en GitHub necesitas conectar GitHub en la pestaña Importar. El token no se guarda en el navegador.');
+    } else {
+      alert('No se pudo guardar en GitHub: ' + result.reason);
+    }
+    return;
+  }
+
   saveDashboardAssets(assets);
   closeModal();
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
-
-  // GitHub: guardar async sin bloquear la UI
-  if (typeof window.githubSaveDashboardAsset === 'function') {
-    window.githubSaveDashboardAsset(data).then(function(r) {
-      if (r.ok) showDashToast('✓ Guardado en GitHub · ' + (data.title || data.id), true);
-      else if (r.reason !== 'no-token') showDashToast('⚠ GitHub: ' + r.reason, false);
-    });
-  }
+  showDashToast('Guardado en GitHub - ' + (data.title || data.id), true);
 }
 
 function attachModalEvents() {
@@ -649,7 +659,11 @@ window.openEditAsset = function(id) {
 
 // ── IMPORT FROM WATCHLIST ──────────────────────────────────────────────────────
 
-function importFromWatchlist() {
+async function importFromWatchlist() {
+  if (typeof window.githubSaveDashboardAsset !== 'function') {
+    alert('GitHub no está disponible todavía. Recarga la página e inténtalo de nuevo.');
+    return;
+  }
   if (typeof window.getNormalizedWatchlist !== 'function') {
     alert('El módulo de Tracking no está cargado. Ve a la pestaña Tracking primero.');
     return;
@@ -675,8 +689,8 @@ function importFromWatchlist() {
     return;
   }
 
-  toImport.forEach(function(w) {
-    existing.push({
+  var imported = toImport.map(function(w) {
+    return {
       id:             'track_' + w.id,
       createdAt:      todayISO(),
       lastUpdated:    todayISO(),
@@ -698,28 +712,53 @@ function importFromWatchlist() {
       lat:            null,
       lng:            null,
       notes:          w.notes || ''
-    });
+    };
   });
 
-  saveDashboardAssets(existing);
-  alert('Importados ' + toImport.length + ' activos A/B del Tracking al dashboard.');
+  for (var i = 0; i < imported.length; i++) {
+    var result = await window.githubSaveDashboardAsset(imported[i]);
+    if (!result.ok) {
+      if (result.reason === 'no-token') {
+        alert('Para importar al Dashboard necesitas conectar GitHub en la pestaña Importar. El token no se guarda en el navegador.');
+      } else {
+        alert('No se pudo guardar en GitHub: ' + result.reason);
+      }
+      return;
+    }
+  }
+
+  saveDashboardAssets(imported.concat(existing));
+  alert('Importados ' + imported.length + ' activos A/B del Tracking a GitHub.');
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
 }
 
 // ── ACTIONS ───────────────────────────────────────────────────────────────────
 
-function deleteAsset(id) {
+async function deleteAsset(id) {
   var assets = getDashboardAssets();
   var asset = assets.find(function(a) { return a.id === id; });
   if (!asset || !confirm('¿Eliminar “' + (asset.title || 'este activo') + '”?')) return;
+
+  if (typeof window.githubDeleteDashboardAsset !== 'function') {
+    alert('GitHub no está disponible todavía. Recarga la página e inténtalo de nuevo.');
+    return;
+  }
+
+  var result = await window.githubDeleteDashboardAsset(id);
+  if (!result.ok) {
+    if (result.reason === 'no-token') {
+      alert('Para borrar en GitHub necesitas conectar GitHub en la pestaña Importar. El token no se guarda en el navegador.');
+    } else {
+      alert('No se pudo borrar en GitHub: ' + result.reason);
+    }
+    return;
+  }
+
   saveDashboardAssets(assets.filter(function(a) { return a.id !== id; }));
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
-  // GitHub: eliminar archivo del repo
-  if (typeof window.githubDeleteDashboardAsset === 'function') {
-    window.githubDeleteDashboardAsset(id);
-  }
+  showDashToast('Eliminado de GitHub - ' + (asset.title || id), true);
 }
 
 function analyzeAsset(id) {
@@ -806,7 +845,7 @@ function renderDashboard(el) {
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
     '<button id="dash-import-wl" style="padding:8px 14px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">Importar Tracking</button>' +
-    '<button id="dash-gh-sync" title="Sincronizar activos con GitHub" style="padding:8px 14px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">↕ GitHub</button>' +
+    '<button id="dash-gh-sync" title="Cargar activos desde GitHub" style="padding:8px 14px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">GitHub</button>' +
     '<button id="dash-add" style="padding:8px 18px;border:none;border-radius:8px;background:#ba7517;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500">+ Añadir activo</button>' +
     '</div>' +
     '</div>' +
@@ -870,40 +909,30 @@ async function syncDashboardFromGitHub() {
   if (btn) { btn.textContent = 'Sincronizando...'; btn.disabled = true; }
 
   if (typeof window.githubLoadDashboardAssets !== 'function') {
-    showDashToast('⚠ Conecta GitHub en Importar → Configuración IA', false);
-    if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
+    showDashToast('GitHub no está disponible todavía', false);
+    if (btn) { btn.textContent = 'GitHub'; btn.disabled = false; }
     return;
   }
 
   var ghAssets = await window.githubLoadDashboardAssets();
 
   if (ghAssets === null) {
-    showDashToast('⚠ Conecta GitHub primero en la pestaña Importar', false);
-    if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
+    showDashToast('No se pudieron leer los activos de GitHub', false);
+    if (btn) { btn.textContent = 'GitHub'; btn.disabled = false; }
     return;
   }
 
-  if (!ghAssets.length) {
-    showDashToast('GitHub sin activos todavía — guarda alguno primero', true);
-    if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
-    return;
-  }
-
-  // Merge: activos de GitHub + activos solo en local (no sobreescribir lo local)
-  var local = getDashboardAssets();
-  var ghIds = ghAssets.map(function(a) { return a.id; });
-  var localOnly = local.filter(function(a) { return !ghIds.includes(a.id); });
-  var merged = ghAssets.concat(localOnly);
-  merged.sort(function(a, b) {
+  ghAssets.sort(function(a, b) {
     return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
   });
 
-  saveDashboardAssets(merged);
+  saveDashboardAssets(ghAssets);
+  _dashboardLoadedFromGitHub = true;
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
-  showDashToast('✓ Sincronizados ' + ghAssets.length + ' activos desde GitHub', true);
+  showDashToast('Cargados ' + ghAssets.length + ' activos desde GitHub', true);
 
-  if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
+  if (btn) { btn.textContent = 'GitHub'; btn.disabled = false; }
 }
 
 // ── PUBLIC API ────────────────────────────────────────────────────────────────
@@ -912,9 +941,11 @@ window.loadDashboard = function() {
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
   if (_dashMap) setTimeout(function() { _dashMap.invalidateSize(); }, 150);
+  if (!_dashboardLoadedFromGitHub) syncDashboardFromGitHub();
 };
 
 document.addEventListener('DOMContentLoaded', function() {
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
+  if (!_dashboardLoadedFromGitHub) syncDashboardFromGitHub();
 });
