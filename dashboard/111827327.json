@@ -11,7 +11,7 @@
   "rooms": 3,
   "condition": "buen_estado",
   "stage": "analizando",
-  "priority": "A",
+  "priority": "C",
   "contactedAgent": false,
   "contactDate": null,
   "visitDate": null,
@@ -22,5 +22,7 @@
   "ref_code": "",
   "foto_portada": "https://raw.githubusercontent.com/enriquesem22/V2/main/dashboard/Calle%20dels%20Pins%20-%20idealista_111827327/Captura%20de%20pantalla%202026-06-26%20200015.png",
   "foto_urls": [],
-  "createdAt": "2026-06-26"
+  "createdAt": "2026-06-26",
+  "folder": "dashboard/Calle dels Pins - idealista_111827327",
+  "imageSource": "Idealista"
 }
