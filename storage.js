@@ -647,6 +647,66 @@ window.setMun=(v)=>{if(_origSetMun)_origSetMun(v);autoSave();};
 window.setBar=(v)=>{if(_origSetBar)_origSetBar(v);autoSave();};
 window.setSub=(v)=>{if(_origSetSub)_origSetSub(v);autoSave();};
 
+// ─── DASHBOARD ASSETS GITHUB SYNC ────────────────────────────────────
+// Cada activo del dashboard se guarda como dashboard/{id}.json en el repo
+
+window.githubSaveDashboardAsset = async function(asset) {
+  if (!ghToken) return { ok: false, reason: 'no-token' };
+  try {
+    var path = 'dashboard/' + asset.id + '.json';
+    var existing = null;
+    try { existing = await ghGetFile(path); } catch(e) {}
+    await ghPutFile(path, asset, existing ? existing.sha : null);
+    return { ok: true };
+  } catch(e) {
+    return { ok: false, reason: e.message };
+  }
+};
+
+window.githubDeleteDashboardAsset = async function(id) {
+  if (!ghToken) return { ok: false, reason: 'no-token' };
+  try {
+    var path = 'dashboard/' + id + '.json';
+    var existing = null;
+    try { existing = await ghGetFile(path); } catch(e) {}
+    if (!existing) return { ok: true };
+    var r = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/' + path, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + ghToken, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Delete property: ' + id, sha: existing.sha })
+    });
+    return { ok: r.ok };
+  } catch(e) {
+    return { ok: false, reason: e.message };
+  }
+};
+
+window.githubLoadDashboardAssets = async function() {
+  if (!ghToken) return null;
+  try {
+    var r = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/dashboard', {
+      headers: { 'Authorization': 'Bearer ' + ghToken, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (r.status === 404) return [];
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var files = await r.json();
+    var assets = [];
+    for (var i = 0; i < files.length; i++) {
+      if (!files[i].name.endsWith('.json')) continue;
+      try {
+        var r2 = await fetch(files[i].download_url);
+        if (r2.ok) assets.push(await r2.json());
+      } catch(e2) { console.warn('Error loading', files[i].name, e2); }
+    }
+    return assets;
+  } catch(e) {
+    console.error('githubLoadDashboardAssets:', e);
+    return null;
+  }
+};
+
+window.githubHasDashboardToken = function() { return !!ghToken; };
+
 // ─── RESTAURAR AL CARGAR ──────────────────────────────────────────────
 window.addEventListener('load', function(){
   // 1. Restaurar estado guardado

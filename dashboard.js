@@ -30,6 +30,19 @@ var _dashMap = null;
 var _dashMarkers = [];
 var _dashMapReady = false;
 
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+
+function showDashToast(msg, ok) {
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);' +
+    'background:' + (ok ? '#15803d' : '#b91c1c') + ';color:#fff;padding:9px 20px;' +
+    'border-radius:8px;font-size:12px;z-index:99999;box-shadow:0 4px 14px rgba(0,0,0,.25);' +
+    'white-space:nowrap;pointer-events:none;transition:opacity .3s';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function() { t.style.opacity = '0'; setTimeout(function() { t.remove(); }, 350); }, 3200);
+}
+
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 
 function getDashboardAssets() {
@@ -598,6 +611,14 @@ function saveFromModal(existingId) {
   closeModal();
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
+
+  // GitHub: guardar async sin bloquear la UI
+  if (typeof window.githubSaveDashboardAsset === 'function') {
+    window.githubSaveDashboardAsset(data).then(function(r) {
+      if (r.ok) showDashToast('✓ Guardado en GitHub · ' + (data.title || data.id), true);
+      else if (r.reason !== 'no-token') showDashToast('⚠ GitHub: ' + r.reason, false);
+    });
+  }
 }
 
 function attachModalEvents() {
@@ -695,6 +716,10 @@ function deleteAsset(id) {
   saveDashboardAssets(assets.filter(function(a) { return a.id !== id; }));
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
+  // GitHub: eliminar archivo del repo
+  if (typeof window.githubDeleteDashboardAsset === 'function') {
+    window.githubDeleteDashboardAsset(id);
+  }
 }
 
 function analyzeAsset(id) {
@@ -780,7 +805,8 @@ function renderDashboard(el) {
     '<div style="font-size:11px;color:#aaa;margin-top:3px">Inmuebles en seguimiento · Idealista · Solvia · y más</div>' +
     '</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-    '<button id="dash-import-wl" style="padding:8px 14px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">Importar desde Tracking</button>' +
+    '<button id="dash-import-wl" style="padding:8px 14px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">Importar Tracking</button>' +
+    '<button id="dash-gh-sync" title="Sincronizar activos con GitHub" style="padding:8px 14px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit">↕ GitHub</button>' +
     '<button id="dash-add" style="padding:8px 18px;border:none;border-radius:8px;background:#ba7517;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500">+ Añadir activo</button>' +
     '</div>' +
     '</div>' +
@@ -809,6 +835,9 @@ function renderDashboard(el) {
   var importBtn = document.getElementById('dash-import-wl');
   if (importBtn) importBtn.addEventListener('click', importFromWatchlist);
 
+  var ghBtn = document.getElementById('dash-gh-sync');
+  if (ghBtn) ghBtn.addEventListener('click', syncDashboardFromGitHub);
+
   var archBtn = document.getElementById('dash-toggle-archived');
   if (archBtn) archBtn.addEventListener('click', function() {
     window._dashShowArchived = !window._dashShowArchived;
@@ -832,6 +861,49 @@ function renderDashboard(el) {
       updateDashMap(assets);
     }, 80);
   }
+}
+
+// ── GITHUB SYNC ───────────────────────────────────────────────────────────────
+
+async function syncDashboardFromGitHub() {
+  var btn = document.getElementById('dash-gh-sync');
+  if (btn) { btn.textContent = 'Sincronizando...'; btn.disabled = true; }
+
+  if (typeof window.githubLoadDashboardAssets !== 'function') {
+    showDashToast('⚠ Conecta GitHub en Importar → Configuración IA', false);
+    if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
+    return;
+  }
+
+  var ghAssets = await window.githubLoadDashboardAssets();
+
+  if (ghAssets === null) {
+    showDashToast('⚠ Conecta GitHub primero en la pestaña Importar', false);
+    if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
+    return;
+  }
+
+  if (!ghAssets.length) {
+    showDashToast('GitHub sin activos todavía — guarda alguno primero', true);
+    if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
+    return;
+  }
+
+  // Merge: activos de GitHub + activos solo en local (no sobreescribir lo local)
+  var local = getDashboardAssets();
+  var ghIds = ghAssets.map(function(a) { return a.id; });
+  var localOnly = local.filter(function(a) { return !ghIds.includes(a.id); });
+  var merged = ghAssets.concat(localOnly);
+  merged.sort(function(a, b) {
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+
+  saveDashboardAssets(merged);
+  var el = document.getElementById('dp-content');
+  if (el) renderDashboard(el);
+  showDashToast('✓ Sincronizados ' + ghAssets.length + ' activos desde GitHub', true);
+
+  if (btn) { btn.textContent = '↕ GitHub'; btn.disabled = false; }
 }
 
 // ── PUBLIC API ────────────────────────────────────────────────────────────────
