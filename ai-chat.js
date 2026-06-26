@@ -78,57 +78,115 @@ async function callAI(messages, maxTokens) {
   throw new Error('Proveedor desconocido: ' + p);
 }
 
-// ── JINA READER ───────────────────────────────────────────────────────────────
+// ── PAGE READER (Jina + fallbacks) ───────────────────────────────────────────
 
-async function readUrlJina(url) {
-  var c = new AbortController();
-  setTimeout(function() { c.abort(); }, 15000);
-  var r = await fetch('https://r.jina.ai/' + url, {
-    headers: { 'Accept': 'text/plain', 'X-Return-Format': 'markdown' },
-    signal: c.signal
-  });
-  if (!r.ok) throw new Error('No se pudo leer la URL (estado ' + r.status + ')');
-  var txt = await r.text();
-  txt = txt.replace(/\n{3,}/g, '\n\n').trim();
-  return txt.substring(0, 6000);
+function cleanHtml(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-// ── FILL ASSET FROM URL ───────────────────────────────────────────────────────
-
-var FILL_PROMPT = 'Eres experto en inmuebles en venta en España. Extrae datos del anuncio y devuelve SOLO JSON válido sin texto adicional.\n\n' +
-  'JSON requerido (null si no aparece):\n' +
-  '{"title":null,"city":null,"neighborhood":null,"price":null,"surface":null,"rooms":null,"condition":null,"source":null,"lat":null,"lng":null}\n\n' +
-  'Reglas:\n' +
-  '- title: dirección completa (ej: "Calle Mayor 12, 3B")\n' +
-  '- condition: "a_reformar" | "segunda_mano" | "buen_estado" | "reformado" | "obra_nueva" | null\n' +
-  '- source: "Idealista" | "Solvia" | "Habitaclia" | "Fotocasa" | "Milanuncios" | "Otra"\n' +
-  '- price y surface: solo números (sin €, sin m²)\n' +
-  '- lat/lng: coordenadas si aparecen en el texto, si no null\n\n' +
-  'ANUNCIO:\n';
-
-window.fillAssetWithAI = async function(url, onStatus) {
+window.readPageForFill = async function(url, onStatus) {
   onStatus = onStatus || function() {};
-  if (!url) throw new Error('Introduce una URL');
+  var text = '';
 
+  // 1. Jina AI Reader
+  onStatus('Leyendo página (Jina)...', '#d97706');
+  try {
+    var c1 = new AbortController();
+    setTimeout(function() { c1.abort(); }, 14000);
+    var r1 = await fetch('https://r.jina.ai/' + url, {
+      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'markdown', 'X-Timeout': '10' },
+      signal: c1.signal
+    });
+    if (r1.ok) {
+      var t1 = (await r1.text()).replace(/\n{3,}/g, '\n\n').trim();
+      if (t1.length > 400) { text = t1.substring(0, 7000); }
+    }
+  } catch(e) { console.log('Jina failed:', e.message); }
+
+  // 2. allorigins.win
+  if (!text) {
+    onStatus('Probando proxy alternativo...', '#d97706');
+    try {
+      var c2 = new AbortController();
+      setTimeout(function() { c2.abort(); }, 10000);
+      var r2 = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), { signal: c2.signal });
+      if (r2.ok) {
+        var d2 = await r2.json();
+        var t2 = cleanHtml(d2.contents || '').substring(0, 7000);
+        if (t2.length > 400) { text = t2; }
+      }
+    } catch(e) { console.log('allorigins failed:', e.message); }
+  }
+
+  // 3. corsproxy.io
+  if (!text) {
+    onStatus('Probando corsproxy...', '#d97706');
+    try {
+      var c3 = new AbortController();
+      setTimeout(function() { c3.abort(); }, 10000);
+      var r3 = await fetch('https://corsproxy.io/?' + encodeURIComponent(url), { signal: c3.signal });
+      if (r3.ok) {
+        var t3 = cleanHtml(await r3.text()).substring(0, 7000);
+        if (t3.length > 400) { text = t3; }
+      }
+    } catch(e) { console.log('corsproxy failed:', e.message); }
+  }
+
+  return text;
+};
+
+// ── FILL ASSET FROM TEXT (AI extraction) ──────────────────────────────────────
+
+var FILL_PROMPT =
+  'Eres experto en inmuebles en venta en España. Extrae los datos del anuncio y devuelve SOLO JSON válido, sin texto adicional, sin markdown, sin backticks.\n\n' +
+  'Devuelve exactamente este JSON (usa null si el dato no aparece):\n' +
+  '{"title":null,"city":null,"neighborhood":null,"price":null,"surface":null,"rooms":null,"condition":null,"source":null,"lat":null,"lng":null}\n\n' +
+  'Reglas importantes:\n' +
+  '- title: dirección exacta (ej: "Calle Mayor 12, 3B") o nombre descriptivo del inmueble\n' +
+  '- city: municipio o ciudad (ej: "Sevilla", "Manresa", "San Juan de Aznalfarache")\n' +
+  '- neighborhood: barrio o zona (ej: "Macarena", "Triana", "Centre")\n' +
+  '- price: número entero en euros, sin puntos ni €\n' +
+  '- surface: metros cuadrados construidos, número entero\n' +
+  '- rooms: número de habitaciones, entero\n' +
+  '- condition: "a_reformar" si está para reformar/mal estado | "segunda_mano" si es de segunda mano sin indicar estado | "buen_estado" si está en buen estado | "reformado" si ya está reformado | "obra_nueva" si es obra nueva\n' +
+  '- source: "Idealista" | "Solvia" | "Habitaclia" | "Fotocasa" | "Milanuncios" | "Otra" según el portal del anuncio\n' +
+  '- lat/lng: coordenadas numéricas si aparecen explícitamente en el texto, si no null\n\n' +
+  'TEXTO DEL ANUNCIO:\n';
+
+window.analyzeTextForAsset = async function(text, onStatus) {
+  onStatus = onStatus || function() {};
   var pk = getProviderAndKey();
   if (!pk) throw new Error('Sin API key. Configúrala en la pestaña Importar → Configuración IA.');
 
-  onStatus('Leyendo página con Jina...', '#d97706');
-  var text;
-  try {
-    text = await readUrlJina(url);
-  } catch(e) {
-    throw new Error('No se pudo leer la URL: ' + e.message + '. Prueba a pegar el texto directamente.');
-  }
+  onStatus('Analizando con ' + providerName(pk.provider) + '...', '#d97706');
 
-  onStatus('Extrayendo datos con ' + providerName(pk.provider) + '...', '#d97706');
   var result = await callAI([
-    { role: 'user', content: FILL_PROMPT + text }
-  ], 600);
+    { role: 'user', content: FILL_PROMPT + text.substring(0, 6000) }
+  ], 800);
 
-  var m = result.text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('La IA no devolvió datos válidos');
-  return JSON.parse(m[0]);
+  // Strip any markdown code fences
+  var cleaned = result.text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').trim();
+  var m = cleaned.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('La IA no devolvió JSON válido. Respuesta: ' + result.text.substring(0, 80));
+  var data = JSON.parse(m[0]);
+
+  var filled = Object.keys(data).filter(function(k) { return data[k] !== null && data[k] !== undefined; });
+  if (!filled.length) throw new Error('La IA no encontró datos en el texto. El contenido leído puede no ser un anuncio inmobiliario.');
+
+  return data;
+};
+
+window.fillAssetWithAI = async function(url, onStatus) {
+  onStatus = onStatus || function() {};
+  var text = await window.readPageForFill(url, onStatus);
+  if (!text) throw new Error('No se pudo leer la página por ningún método. Usa el modo "Pegar texto" debajo.');
+  onStatus('Leídos ' + text.length + ' caracteres. Analizando...', '#d97706');
+  return window.analyzeTextForAsset(text, onStatus);
 };
 
 // ── CHAT ──────────────────────────────────────────────────────────────────────

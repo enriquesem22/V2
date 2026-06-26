@@ -323,13 +323,21 @@ function renderModal(asset) {
 
     // AI fill section
     '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-bottom:18px">' +
-    '<div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:8px">✨ Rellenar con IA</div>' +
-    '<div style="display:flex;gap:8px;align-items:center">' +
-    '<input id="df-ai-url" type="url" placeholder="Pega el link del anuncio (Idealista, Solvia, Fotocasa...)" ' +
+    '<div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:10px">✨ Rellenar campos con IA</div>' +
+
+    '<div style="font-size:10px;color:#92400e;margin-bottom:6px;font-weight:500">Opción 1 — Pega el link del anuncio:</div>' +
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
+    '<input id="df-ai-url" type="url" placeholder="https://www.idealista.com/inmueble/..." ' +
     'style="flex:1;padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:12px;font-family:inherit;outline:none;background:#fff;color:#1a1a1a">' +
-    '<button id="df-ai-btn" onclick="runAIFill()" style="padding:8px 14px;border:none;border-radius:6px;background:#d97706;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">Rellenar →</button>' +
+    '<button id="df-ai-btn" onclick="runAIFill(\'url\')" style="padding:8px 14px;border:none;border-radius:6px;background:#d97706;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">Leer y rellenar →</button>' +
     '</div>' +
-    '<div id="df-ai-status" style="font-size:10px;color:#92400e;margin-top:5px;min-height:14px"></div>' +
+
+    '<div style="font-size:10px;color:#92400e;margin-bottom:4px;font-weight:500">Opción 2 — Pega el texto del anuncio directamente:</div>' +
+    '<textarea id="df-ai-text" rows="4" placeholder="Copia y pega aquí el texto del anuncio (Ctrl+A en la página del anuncio, Ctrl+C, y pega aquí)..." ' +
+    'style="width:100%;padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:11px;font-family:inherit;outline:none;background:#fff;color:#1a1a1a;resize:vertical;box-sizing:border-box;margin-bottom:6px"></textarea>' +
+    '<button id="df-ai-txt-btn" onclick="runAIFill(\'text\')" style="padding:7px 14px;border:none;border-radius:6px;background:#92400e;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">Analizar texto →</button>' +
+
+    '<div id="df-ai-status" style="font-size:11px;color:#92400e;margin-top:8px;min-height:16px;line-height:1.4"></div>' +
     '</div>' +
 
     '<div style="' + g2 + '">' +
@@ -381,56 +389,73 @@ function closeModal() {
   if (el) el.remove();
 }
 
-window.runAIFill = async function() {
-  var url = (document.getElementById('df-ai-url') || {}).value;
-  if (!url || !url.trim()) { alert('Pega primero una URL de anuncio.'); return; }
-
-  if (typeof window.fillAssetWithAI !== 'function') {
-    alert('El módulo de IA no está cargado. Recarga la página.');
+window.runAIFill = async function(mode) {
+  if (typeof window.analyzeTextForAsset !== 'function') {
+    alert('El módulo de IA no está cargado todavía. Espera un momento y vuelve a intentarlo.');
     return;
   }
-
-  var btn = document.getElementById('df-ai-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Leyendo...'; }
 
   function setStatus(msg, color) {
     var el = document.getElementById('df-ai-status');
     if (el) { el.textContent = msg; el.style.color = color || '#92400e'; }
   }
-
-  try {
-    var data = await window.fillAssetWithAI(url.trim(), setStatus);
-
-    function setField(id, value) {
-      var el = document.getElementById(id);
-      if (el && value !== null && value !== undefined && value !== '') el.value = value;
+  function setField(id, value) {
+    var el = document.getElementById(id);
+    if (el && value !== null && value !== undefined && String(value).trim() !== '') el.value = value;
+  }
+  function setSelect(id, value) {
+    var el = document.getElementById(id);
+    if (!el || !value) return;
+    var v = String(value);
+    for (var i = 0; i < el.options.length; i++) {
+      if (el.options[i].value === v || el.options[i].text === v) { el.selectedIndex = i; return; }
     }
-    function setSelect(id, value) {
-      var el = document.getElementById(id);
-      if (!el || !value) return;
-      for (var i = 0; i < el.options.length; i++) {
-        if (el.options[i].value === String(value)) { el.selectedIndex = i; break; }
-      }
-    }
-
-    if (data.title)        setField('df-title',  data.title);
-    if (data.city)         setField('df-city',   data.city);
-    if (data.neighborhood) setField('df-neighborhood', data.neighborhood);
-    if (data.price)        setField('df-price',  data.price);
-    if (data.surface)      setField('df-surface', data.surface);
-    if (data.rooms)        setField('df-rooms',  data.rooms);
-    if (data.lat)          setField('df-lat',    data.lat);
-    if (data.lng)          setField('df-lng',    data.lng);
-    if (data.condition)    setSelect('df-condition', data.condition);
-    if (data.source)       setSelect('df-source', data.source);
-    if (!document.getElementById('df-url').value && url) setField('df-url', url.trim());
-
-    setStatus('✓ Formulario rellenado. Revisa y ajusta si es necesario.', '#15803d');
-  } catch(e) {
-    setStatus('Error: ' + e.message, '#dc2626');
   }
 
-  if (btn) { btn.disabled = false; btn.textContent = 'Rellenar →'; }
+  var urlBtn  = document.getElementById('df-ai-btn');
+  var txtBtn  = document.getElementById('df-ai-txt-btn');
+  var activeBtn = mode === 'text' ? txtBtn : urlBtn;
+  var originalLabel = activeBtn ? activeBtn.textContent : '';
+  if (activeBtn) { activeBtn.disabled = true; activeBtn.textContent = 'Procesando...'; }
+
+  try {
+    var data;
+    var url = (document.getElementById('df-ai-url') || {}).value || '';
+
+    if (mode === 'text') {
+      var text = (document.getElementById('df-ai-text') || {}).value || '';
+      if (!text.trim()) { setStatus('Pega primero el texto del anuncio en el área de texto.', '#dc2626'); return; }
+      data = await window.analyzeTextForAsset(text.trim(), setStatus);
+    } else {
+      if (!url.trim()) { setStatus('Pega primero una URL de anuncio.', '#dc2626'); return; }
+      // Pre-fill URL field immediately
+      setField('df-url', url.trim());
+      data = await window.fillAssetWithAI(url.trim(), setStatus);
+    }
+
+    // Fill form fields
+    if (data.title)        setField('df-title',       data.title);
+    if (data.city)         setField('df-city',         data.city);
+    if (data.neighborhood) setField('df-neighborhood', data.neighborhood);
+    if (data.price)        setField('df-price',        data.price);
+    if (data.surface)      setField('df-surface',      data.surface);
+    if (data.rooms)        setField('df-rooms',        data.rooms);
+    if (data.lat)          setField('df-lat',          data.lat);
+    if (data.lng)          setField('df-lng',          data.lng);
+    if (data.condition)    setSelect('df-condition',   data.condition);
+    if (data.source)       setSelect('df-source',      data.source);
+    if (url && !document.getElementById('df-url').value) setField('df-url', url.trim());
+
+    var filled = ['title','city','neighborhood','price','surface','rooms','condition','source']
+      .filter(function(k) { return data[k] !== null && data[k] !== undefined; });
+    setStatus('✓ Rellenados ' + filled.length + ' campos: ' + filled.join(', ') + '. Revisa y ajusta.', '#15803d');
+
+  } catch(e) {
+    setStatus('✗ ' + e.message, '#dc2626');
+    console.error('AI fill error:', e);
+  }
+
+  if (activeBtn) { activeBtn.disabled = false; activeBtn.textContent = originalLabel; }
 };
 
 function v(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
