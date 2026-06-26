@@ -5,12 +5,23 @@ var DASHBOARD_VERSION = '1.0';
 var _dashboardAssets = [];
 var _dashboardLoadedFromGitHub = false;
 
-// Proxy de imágenes para evitar bloqueos hotlink (Idealista, Fotocasa, etc.)
+// Proxy de imágenes: weserv.nl requiere URL sin protocolo
 function imgProxy(url) {
   if (!url) return '';
-  // URLs ya proxificadas o data: no tocar
   if (url.startsWith('data:') || url.includes('weserv.nl')) return url;
-  return 'https://images.weserv.nl/?url=' + encodeURIComponent(url) + '&w=600&output=jpg&we';
+  return 'https://images.weserv.nl/?url=' + url.replace(/^https?:\/\//, '') + '&w=800&output=jpg&we&maxage=7d';
+}
+
+// Genera <img> con: carga directa → fallback proxy → placeholder texto
+function mkImg(url, style) {
+  if (!url) return '';
+  var direct = escD(url);
+  var proxy  = escD(imgProxy(url));
+  var onErr  = "if(this.dataset.tried){this.style='" + style.replace(/'/g,"\\'") +
+    ";background:#f0f0eb;display:flex;align-items:center;justify-content:center;font-size:10px;color:#aaa';this.removeAttribute('src');this.textContent='Sin foto';}else{this.dataset.tried=1;this.src='" + proxy + "';}";
+  return '<img src="' + direct + '" referrerpolicy="no-referrer"' +
+    ' onerror="' + escD(onErr) + '"' +
+    ' style="' + style + '">';
 }
 
 var STAGE_CONFIG = {
@@ -217,9 +228,7 @@ function renderRow(asset, i) {
 
   var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls : [];
   var thumbSrc = asset.foto_portada || (photos.length ? photos[0] : '');
-  var thumbHtml = thumbSrc
-    ? '<img src="' + escD(imgProxy(thumbSrc)) + '" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block" onerror="this.style.display=\'none\'">'
-    : '';
+  var thumbHtml = thumbSrc ? mkImg(thumbSrc, 'width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block') : '';
 
   return '<tr style="background:' + (i % 2 ? '#fafaf8' : '#fff') + ';border-top:1px solid #f0f0ea">' +
     '<td style="padding:8px;text-align:center">' + prioBadge(asset.priority) + '</td>' +
@@ -416,7 +425,7 @@ function renderModal(asset) {
     (asset.foto_urls && asset.foto_urls.length ?
       '<div style="margin-top:12px;display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">' +
       asset.foto_urls.slice(0, 8).map(function(u) {
-        return '<img src="' + escD(imgProxy(u)) + '" style="width:72px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
+        return mkImg(u, 'width:72px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0');
       }).join('') +
       '</div>' : '') +
 
@@ -796,16 +805,14 @@ function renderAssetDetail(asset) {
   var stageC = stageCfg(asset.stage);
 
   // ── Foto portada ──
-  var coverHtml = coverSrc
-    ? '<img src="' + escD(imgProxy(coverSrc)) + '" style="width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">'
-    : '';
+  var coverHtml = coverSrc ? mkImg(coverSrc, 'width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #e5e5e0;flex-shrink:0') : '';
 
   // ── Strip fotos adicionales ──
   var extraPhotos = photos.filter(function(u) { return u !== coverSrc; });
   var photosHtml = extraPhotos.length
     ? '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:thin">' +
       extraPhotos.map(function(u) {
-        return '<img src="' + escD(imgProxy(u)) + '" style="height:140px;min-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
+        return mkImg(u, 'height:140px;min-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e0;flex-shrink:0');
       }).join('') + '</div>'
     : '';
 
