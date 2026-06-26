@@ -473,6 +473,9 @@ function renderAssetEditInline(asset) {
         btn.disabled = false; btn.textContent = lbl; return;
       }
     }
+    // Propagar cambios a todos los calculadores (fuente de verdad única)
+    populateCalculatorsFromAsset(data);
+
     // Actualizar nombre de pestaña
     var adpTab = document.querySelector('.tab[data-tab="adp"]');
     if (adpTab) {
@@ -923,11 +926,12 @@ function renderAssetDetail(asset) {
     row('Fecha visita', asset.visitDate, '#8b5cf6') +
     row('Importe oferta', asset.offerAmount ? moneyD(asset.offerAmount) : null, '#ef4444');
 
-  // ── Análisis flip ──
+  // ── Análisis flip (estimación rápida — para análisis completo usar pestaña Flip) ──
   var flipBody;
   if (flip) {
     var roiColor = flip.roi >= 20 ? '#16a34a' : flip.roi >= 10 ? '#d97706' : '#dc2626';
     flipBody =
+      '<div style="font-size:10px;color:#aaa;margin-bottom:8px;font-style:italic">Estimación rápida · <button onclick="(function(){var t=document.querySelector(\'.tab[data-tab=fp]\');if(t&&typeof sw===\'function\')sw(\'fp\',t);})()" style="background:none;border:none;color:#ba7517;cursor:pointer;font-size:10px;padding:0;font-family:inherit">Ver análisis completo en pestaña Flip →</button></div>' +
       row('Precio de compra', moneyD(flip.p)) +
       row('Gastos compra (11%)', moneyD(flip.buyC)) +
       row('Reforma est. (' + flip.refPm2 + ' €/m²)', moneyD(flip.refC)) +
@@ -987,7 +991,7 @@ function renderAssetDetail(asset) {
 
       '<div>' +
         card('Pipeline CRM', crmBody) +
-        card('Análisis Flip', flipBody, '#ba7517') +
+        card('Flip — estimación rápida', flipBody, '#ba7517') +
       '</div>' +
 
     '</div>' +
@@ -998,23 +1002,18 @@ function renderAssetDetail(asset) {
   if (editBtn) editBtn.addEventListener('click', function() { renderAssetEditInline(asset); });
 }
 
-window.openAssetDetail = function(id) {
-  var asset = getDashboardAssets().find(function(a) { return a.id === id; });
-  if (!asset) return;
+// Fuente de verdad única: asset → estados S/F/B → todas las pestañas
+// S.pc = precio compra, F.sup = superficie (únicos campos que existen en los calculadores)
+function populateCalculatorsFromAsset(asset) {
+  if (window.S && asset.price)   window.S.pc  = Math.round(asset.price);
+  if (window.F && asset.surface) window.F.sup  = Math.round(asset.surface);
 
-  // Poblar calculadores con datos del asset (o dejar en 0 si no hay datos)
-  if (window.S) window.S.pc = asset.price ? Math.round(asset.price) : 0;
-  if (window.F) {
-    window.F.sup = asset.surface ? Math.round(asset.surface) : 0;
-    if (asset.price) window.F.pco = Math.round(asset.price);
-  }
-  if (window.B) {
-    window.B.sup = asset.surface ? Math.round(asset.surface) : 0;
-    if (asset.price) window.B.pco = Math.round(asset.price);
-  }
-  ['rSI','rSR','rFI','rFR','rBI','rBR'].forEach(function(fn) {
+  // Re-renderizar todas las pestañas de análisis
+  ['rSI','rSR','rFI','rFR','rBI','rBR','rPresupuesto'].forEach(function(fn) {
     if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
   });
+
+  // GEO: intentar preseleccionar ciudad/barrio en pestaña Mercado
   if (window.GEO && (asset.city || asset.neighborhood)) {
     var cityLow = (asset.city || '').toLowerCase();
     var nbLow   = (asset.neighborhood || '').toLowerCase();
@@ -1033,6 +1032,14 @@ window.openAssetDetail = function(id) {
     if (typeof window.rebuildSelects === 'function') setTimeout(window.rebuildSelects, 80);
     if (typeof window.doMapUpdate    === 'function') setTimeout(window.doMapUpdate,    200);
   }
+}
+
+window.openAssetDetail = function(id) {
+  var asset = getDashboardAssets().find(function(a) { return a.id === id; });
+  if (!asset) return;
+
+  // Propagar datos del asset a todos los calculadores
+  populateCalculatorsFromAsset(asset);
 
   // Renderizar ficha
   renderAssetDetail(asset);
