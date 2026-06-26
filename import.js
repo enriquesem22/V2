@@ -358,15 +358,28 @@ window.fetchUrl = async function(){
   st.style.color = '#d97706';
   btn.textContent = 'Leer página →'; btn.disabled = false;
 };// ─── PROMPTS Y LLAMADAS A IA ──────────────────────────────────────────
-const PROMPT_BASE=`Eres experto en inversión inmobiliaria española. Extrae los datos del anuncio y devuelve SOLO JSON válido, sin texto adicional ni backticks. Si un dato no aparece usa null.
+const PROMPT_BASE=`Eres un analista inmobiliario especializado en inversión residencial en España.
 
-JSON requerido:
-{"precio":null,"superficie":null,"superficie_util":null,"habitaciones":null,"banos":null,"planta":null,"ascensor":null,"estado":null,"ano_construccion":null,"direccion":null,"municipio":null,"barrio":null,"provincia":null,"cp":null,"gastos_comunidad":null,"ibi":null,"honorarios_agencia_pct":null,"garaje":null,"trastero":null,"orientacion":null,"certificado_energetico":null,"descripcion_breve":null,"plataforma":null,"notas_inversor":null,"foto_urls":null}
+Extrae los datos del siguiente anuncio. Reglas críticas:
+1. Solo datos que aparezcan literalmente en el texto. No inventes.
+2. Si un dato no aparece: null.
+3. Añade riesgos reales y datos que faltan en los campos correspondientes.
+4. Devuelve EXCLUSIVAMENTE JSON válido, sin texto previo ni backticks.
 
-Valores posibles para estado: "buen estado"|"para reformar"|"obra nueva"|null
-Valores para plataforma: "idealista"|"fotocasa"|"pisos.com"|"habitaclia"|"otro"
-notas_inversor: 1-2 frases clave para un inversor (riesgos, oportunidades, alertas).
-foto_urls: array con las URLs de las fotos del inmueble que aparezcan en el texto (máximo 6). Si no hay URLs de imágenes, null.
+JSON (respeta los nombres de campo exactos):
+{"precio":null,"superficie":null,"superficie_util":null,"habitaciones":null,"banos":null,"planta":null,"ascensor":null,"estado":null,"ano_construccion":null,"direccion":null,"cp":null,"municipio":null,"barrio":null,"provincia":null,"gastos_comunidad":null,"ibi":null,"honorarios_agencia_pct":null,"garaje":null,"trastero":null,"orientacion":null,"certificado_energetico":{"consumo":null,"emisiones":null},"anunciante":null,"referencia":null,"fecha_actualizacion":null,"descripcion_breve":null,"puntos_positivos":[],"riesgos":[],"datos_faltantes":[],"plataforma":null,"foto_urls":null}
+
+Reglas de valores:
+- estado: "buen estado" | "para reformar" | "obra nueva" | null
+- plataforma: "idealista" | "fotocasa" | "pisos.com" | "habitaclia" | "otro"
+- ascensor: true | false | null
+- fecha_actualizacion: formato YYYY-MM-DD o null
+- anunciante: nombre del agente, inmobiliaria o particular que publica
+- referencia: código de referencia del anuncio si aparece
+- puntos_positivos: 2-4 frases cortas de valor para inversor (precio/m², ubicación, potencial)
+- riesgos: solo riesgos reales del anuncio (sin ascensor en planta alta, año antiguo, datos clave que faltan, etc.)
+- datos_faltantes: campos importantes no mencionados que habría que preguntar al anunciante
+- foto_urls: array de URLs de imágenes del inmueble que aparezcan en el texto (máx 6), o null
 
 ANUNCIO:
 `;
@@ -439,22 +452,7 @@ window.analizarAnuncio = async function(){
   st.textContent = 'Enviando a ' + {groq:'Groq (gratis)',openai:'ChatGPT',google:'Gemini',anthropic:'Claude'}[provider] + '...';
   st.style.color = '#aaa';
   
-  const PROMPT = `Eres experto en inversión inmobiliaria española. Extrae los datos y devuelve SOLO JSON válido sin texto adicional ni backticks markdown.
-
-JSON requerido (usa null si no aparece):
-{"precio":null,"superficie":null,"superficie_util":null,"habitaciones":null,"banos":null,"planta":null,"ascensor":null,"estado":null,"ano_construccion":null,"direccion":null,"cp":null,"municipio":null,"barrio":null,"provincia":null,"gastos_comunidad":null,"ibi":null,"honorarios_agencia_pct":null,"garaje":null,"trastero":null,"orientacion":null,"certificado_energetico":null,"descripcion_breve":null,"plataforma":null,"notas_inversor":null,"foto_urls":null}
-
-Reglas:
-- estado: "buen estado" | "para reformar" | "obra nueva" | null
-- plataforma: "idealista" | "fotocasa" | "pisos.com" | "habitaclia" | "otro"
-- direccion: calle y número exacto (ej: "Calle Mayor 12, 3B")
-- cp: código postal 5 dígitos si aparece
-- notas_inversor: 1-2 frases clave para inversor (riesgos, oportunidades)
-- foto_urls: array de URLs de imágenes que aparezcan en el texto, máximo 6, o null
-- ascensor: true | false | null
-
-ANUNCIO:
-` + txt.substring(0, 5000);
+  const PROMPT = PROMPT_BASE + txt.substring(0, 5000);
 
   try{
     let raw = '';
@@ -511,45 +509,149 @@ ANUNCIO:
   }
   btn.textContent = 'Analizar con IA'; btn.disabled = false;
 };
+// ─── CÁLCULO DE MÉTRICAS FLIP ────────────────────────────────────────
+// Capa A: extracción objetiva ya hecha por IA
+// Capa B: análisis de inversión — solo matemáticas, sin IA
+function calcularMetricasFlip(d){
+  if(!d||!d.precio||!d.superficie||d.precio<=0||d.superficie<=0) return null;
+  const precio=d.precio, sup=d.superficie;
+  const pm2=Math.round(precio/sup);
+  // Costes de compra: ITP 8% + notaría+registro 1.5% + honorarios agencia
+  const itp=8, notaria=1.5, agencia=d.honorarios_agencia_pct||0;
+  const pctCompra=itp+notaria+agencia;
+  const costesCompra=Math.round(precio*pctCompra/100);
+  // Coste reforma según estado del inmueble
+  let pm2Reforma=200; // estado desconocido
+  if((d.estado||'').includes('reformar')) pm2Reforma=350;
+  else if((d.estado||'').includes('buen')) pm2Reforma=50;
+  else if((d.estado||'').includes('nueva')) pm2Reforma=0;
+  const costeReforma=Math.round(sup*pm2Reforma);
+  const costesTotal=precio+costesCompra+costeReforma;
+  // Precio de salida: coste total × 1.25 (margen objetivo 25%)
+  const precioSalidaEst=Math.round(costesTotal*1.25);
+  const pm2Salida=Math.round(precioSalidaEst/sup);
+  const beneficioNeto=precioSalidaEst-costesTotal;
+  const roi=Math.round((beneficioNeto/costesTotal)*1000)/10;
+  // Cash necesario con financiación 70% LTV
+  const cashConFin=Math.round(precio*0.30)+costesCompra+costeReforma;
+  const riesgo=roi>=20?'bajo':roi<10?'alto':'medio';
+  return{pm2,pm2Reforma,pctCompra,costesCompra,costeReforma,costesTotal,precioSalidaEst,pm2Salida,beneficioNeto,roi,cashConFin,riesgo};
+}
+
 function mostrarResultadoImport(d){
   const r=document.getElementById('import-result');if(!r)return;
   window._lastImport=d;
   const ef2=n=>n!=null?new Intl.NumberFormat('es-ES',{maximumFractionDigits:0}).format(n):'—';
+  const ef3=n=>(n!=null&&isFinite(n))?new Intl.NumberFormat('es-ES',{maximumFractionDigits:0}).format(Math.round(n))+' €':'—';
+
+  // Normalizar certificado energético (puede ser string legado u objeto nuevo)
+  let certStr='';
+  if(d.certificado_energetico){
+    if(typeof d.certificado_energetico==='object'){
+      const c=d.certificado_energetico;
+      certStr=[c.consumo&&'Consumo: '+c.consumo,c.emisiones&&'Emisiones: '+c.emisiones].filter(Boolean).join(' · ');
+    }else{ certStr=String(d.certificado_energetico); }
+  }
+
+  // Arrays cualitativos (nuevo formato o legado notas_inversor)
+  const puntosPos=Array.isArray(d.puntos_positivos)?d.puntos_positivos.filter(Boolean):[];
+  const riesgos=Array.isArray(d.riesgos)?d.riesgos.filter(Boolean):(d.notas_inversor?[d.notas_inversor]:[]);
+  const datosFaltantes=Array.isArray(d.datos_faltantes)?d.datos_faltantes.filter(Boolean):[];
+
   const filas=[
     ['Precio',d.precio!=null?ef2(d.precio)+' €':null],
     ['Superficie',d.superficie!=null?d.superficie+' m²':null],
-    ['Superficie útil',d.superficie_util!=null?d.superficie_util+' m²':null],
+    ['Sup. útil',d.superficie_util!=null?d.superficie_util+' m²':null],
+    ['€/m²',(d.precio&&d.superficie)?ef2(Math.round(d.precio/d.superficie))+' €/m²':null],
     ['Habitaciones',d.habitaciones],['Baños',d.banos],
     ['Planta',d.planta!=null?(d.planta===0?'Bajo':d.planta+'ª'):null],
     ['Ascensor',d.ascensor===true?'Sí':d.ascensor===false?'No':null],
     ['Estado',d.estado],['Año construcción',d.ano_construccion],
-    ['Dirección',d.direccion],['Código postal',d.cp],
+    ['Dirección',d.direccion],['C.P.',d.cp],
     ['Municipio',d.municipio],['Barrio',d.barrio],['Provincia',d.provincia],
-    ['Garaje',d.garaje===true?'Sí':null],['Trastero',d.trastero===true?'Sí':null],
-    ['Orientación',d.orientacion],['Certif. energético',d.certificado_energetico],
     ['Comunidad',d.gastos_comunidad!=null?d.gastos_comunidad+' €/mes':null],
     ['IBI',d.ibi!=null?d.ibi+' €/año':null],
-    ['Honorarios agencia',d.honorarios_agencia_pct!=null?d.honorarios_agencia_pct+'%':null],
+    ['Honorarios',d.honorarios_agencia_pct!=null?d.honorarios_agencia_pct+'%':null],
+    ['Garaje',d.garaje===true?'Sí':null],['Trastero',d.trastero===true?'Sí':null],
+    ['Orientación',d.orientacion],
+    ['Certif. energético',certStr||null],
+    ['Anunciante',d.anunciante],
+    ['Referencia',d.referencia],
+    ['Actualizado',d.fecha_actualizacion],
     ['Plataforma',d.plataforma],
-  ].filter(([,v])=>v!==null&&v!==undefined&&v!=='');
+  ].filter(([,v])=>v!=null&&v!==undefined&&v!=='');
+
+  // Secciones cualitativas
+  let htmlCual='';
+  if(puntosPos.length) htmlCual+=`<div style="margin-top:10px;padding:9px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:6px"><div style="font-size:11px;font-weight:600;color:#15803d;margin-bottom:5px">Puntos de valor</div>${puntosPos.map(p=>`<div style="font-size:11px;color:#166534;line-height:1.6">· ${sanitize(p)}</div>`).join('')}</div>`;
+  if(riesgos.length) htmlCual+=`<div style="margin-top:8px;padding:9px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px"><div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:5px">Riesgos / incógnitas</div>${riesgos.map(p=>`<div style="font-size:11px;color:#92400e;line-height:1.6">· ${sanitize(p)}</div>`).join('')}</div>`;
+  if(datosFaltantes.length) htmlCual+=`<div style="margin-top:8px;padding:9px 12px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px"><div style="font-size:11px;font-weight:600;color:#475569;margin-bottom:5px">Datos que faltan</div>${datosFaltantes.map(p=>`<div style="font-size:11px;color:#64748b;line-height:1.6">· ${sanitize(p)}</div>`).join('')}</div>`;
+
+  // Fotos
+  let htmlFotos='';
+  if(d.foto_urls&&d.foto_urls.length>0) htmlFotos=`<div style="margin-top:12px"><div style="font-size:11px;font-weight:500;color:#555;margin-bottom:6px">Fotos del inmueble</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">${d.foto_urls.slice(0,6).map(u=>`<a href="${u}" target="_blank" rel="noopener" style="display:block;aspect-ratio:4/3;overflow:hidden;border-radius:6px;border:1px solid #e5e5e0"><img src="${u}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'" loading="lazy"></a>`).join('')}</div></div>`;
+
+  // Análisis flip (Capa B — solo matemáticas)
+  const inv=calcularMetricasFlip(d);
+  let htmlFlip='';
+  if(inv){
+    const rColor=inv.riesgo==='bajo'?'#15803d':inv.riesgo==='alto'?'#dc2626':'#92400e';
+    const rBg=inv.riesgo==='bajo'?'#f0fdf4':inv.riesgo==='alto'?'#fef2f2':'#fffbeb';
+    const rBorder=inv.riesgo==='bajo'?'#86efac':inv.riesgo==='alto'?'#fca5a5':'#fcd34d';
+    const roiColor=inv.roi>=20?'#15803d':inv.roi<10?'#dc2626':'#92400e';
+    const agenciaNote=d.honorarios_agencia_pct?' + agencia '+d.honorarios_agencia_pct+'%':'';
+    const filasFlip=[
+      ['Precio de compra',ef3(d.precio)],
+      ['€/m² actual',ef2(inv.pm2)+' €/m²'],
+      ['Costes de compra ('+inv.pctCompra+'%)',ef3(inv.costesCompra)],
+      ['Reforma estimada ('+inv.pm2Reforma+' €/m²)',ef3(inv.costeReforma)],
+      ['TOTAL',ef3(inv.costesTotal)],
+      ['Precio salida est.',ef3(inv.precioSalidaEst)+' ('+inv.pm2Salida+' €/m²)'],
+      ['Beneficio neto',ef3(inv.beneficioNeto)],
+      ['ROI est.',inv.roi.toFixed(1)+'%'],
+      ['Cash c/ fin. 70% LTV',ef3(inv.cashConFin)],
+    ];
+    htmlFlip=`<div class="sec" style="margin-top:8px">
+    <div class="sec-h" onclick="toggleSec2('sec-flip-est')" style="background:#fffbeb;border-bottom:1px solid #fcd34d">
+      <span class="sec-ht" style="color:#92400e">&#9889; Análisis Flip (estimación automática)</span>
+      <span class="arr open" id="a-sec-flip-est">&#9660;</span>
+    </div>
+    <div class="sec-b open" id="sec-flip-est" style="display:block">
+      <div style="font-size:10px;color:#aaa;margin-bottom:8px;line-height:1.5">ITP 8% + notaría 1.5%${agenciaNote} · Reforma: ${inv.pm2Reforma} €/m² · Precio salida = coste total × 1.25</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+        ${filasFlip.map(([l,v],i)=>{
+          const isTotal=l==='TOTAL';
+          const isRoi=l.startsWith('ROI');
+          return `<div class="dr" style="${isTotal?'grid-column:1/-1;background:#f0f0ea':i%2?'background:#fafaf8':''}"><span class="dl" style="${isTotal?'font-weight:600':''}">` + (isTotal?'Coste total':l) + `</span><span class="dv" style="${isTotal?'font-weight:700':isRoi?'font-weight:700;color:'+roiColor:''}">${v}</span></div>`;
+        }).join('')}
+      </div>
+      <div style="margin-top:10px;padding:8px 12px;border-radius:6px;border:1px solid ${rBorder};background:${rBg}">
+        <span style="font-size:11px;font-weight:600;color:${rColor}">Riesgo de operación: ${inv.riesgo.toUpperCase()}</span>
+        <span style="font-size:11px;color:#888;margin-left:8px">(ROI est. ${inv.roi.toFixed(1)}%)</span>
+      </div>
+      <div style="font-size:10px;color:#bbb;margin-top:8px;line-height:1.5">Estimación orientativa. Ajusta reforma y precio de salida en la pestaña Flip para cálculo preciso.</div>
+    </div>
+  </div>`;
+  }
+
   r.innerHTML=`<div class="sec" style="margin-top:8px">
     <div class="sec-h" style="cursor:default;background:#f0fdf4;border-bottom:1px solid #86efac">
-      <span class="sec-ht" style="color:#15803d">✓ Datos extraídos del anuncio</span>
+      <span class="sec-ht" style="color:#15803d">&#10003; Ficha del inmueble</span>
     </div>
     <div class="sec-b open" style="display:block">
       ${d.descripcion_breve?`<div style="font-size:12px;color:#555;margin-bottom:10px;padding:8px 10px;background:#f9f9f7;border-radius:6px;line-height:1.5">${sanitize(d.descripcion_breve)}</div>`:''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
-        ${filas.map(([l,v],i)=>`<div class="dr" style="${i%2?'background:#fafaf8':''}"><span class="dl">${l}</span><span class="dv">${v}</span></div>`).join('')}
+        ${filas.map(([l,v],i)=>`<div class="dr" style="${i%2?'background:#fafaf8':''}"><span class="dl">${l}</span><span class="dv">${sanitize(String(v))}</span></div>`).join('')}
       </div>
-      ${d.notas_inversor?`<div style="font-size:11px;color:#92400e;margin-top:10px;padding:9px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;line-height:1.6"><b>Nota inversor:</b> ${sanitize(d.notas_inversor)}</div>`:''}
-      ${d.foto_urls&&d.foto_urls.length>0?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:500;color:#555;margin-bottom:6px">📷 Fotos del inmueble</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px">${d.foto_urls.slice(0,6).map(u=>`<a href="${u}" target="_blank" style="display:block;aspect-ratio:4/3;overflow:hidden;border-radius:6px;border:1px solid #e5e5e0"><img src="${u}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'" loading="lazy"></a>`).join('')}</div></div>`:''}
+      ${htmlCual}
+      ${htmlFotos}
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px">
         <button onclick="aplicarActivo()" style="padding:8px;border:1px solid #1a1a1a;border-radius:6px;background:#1a1a1a;color:#fff;font-size:11px;cursor:pointer;font-family:inherit;font-weight:500">Aplicar a Activo</button>
         <button onclick="aplicarYIrFlip()" style="padding:8px;border:1px solid #e5e5e0;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#555;font-weight:500">Ir a Flip →</button>
         <button onclick="guardarComoCase()" style="padding:8px;border:1px solid #86efac;border-radius:6px;background:#f0fdf4;font-size:11px;cursor:pointer;font-family:inherit;color:#15803d;font-weight:500">Guardar en Portfolio</button>
       </div>
     </div>
-  </div>`;
+  </div>${htmlFlip}`;
 }
 
 window.aplicarActivo=function(){

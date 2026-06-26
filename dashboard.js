@@ -207,20 +207,29 @@ function renderRow(asset, i) {
   var btnAnalyze = '<button data-action="analyze-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #16a34a;border-radius:5px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-family:inherit">Analizar</button>';
   var btnDel     = '<button data-action="delete-asset"  data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #fca5a5;border-radius:5px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:11px;font-family:inherit">×</button>';
 
+  var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls : [];
+  var thumbHtml = photos.length
+    ? '<img src="' + escD(photos[0]) + '" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block" onerror="this.style.display=\'none\'">'
+    : '';
+
   return '<tr style="background:' + (i % 2 ? '#fafaf8' : '#fff') + ';border-top:1px solid #f0f0ea">' +
     '<td style="padding:8px;text-align:center">' + prioBadge(asset.priority) + '</td>' +
     '<td style="padding:8px">' + stageBadge(asset.stage) + '</td>' +
     '<td style="padding:8px;font-size:11px;color:#ba7517;font-weight:500">' + escD(asset.source || '—') + '</td>' +
     '<td style="padding:8px;min-width:190px">' +
-      '<div data-action="analyze-asset" data-id="' + asset.id + '" style="font-weight:500;color:#ba7517;font-size:12px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" title="Abrir análisis">' + escD(asset.title || asset.address || '—') + '</div>' +
-      '<div style="color:#aaa;font-size:10px;margin-top:2px">' + escD(asset.city || '') + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + (asset.surface ? ' · ' + asset.surface + ' m²' : '') + (asset.rooms ? ' · ' + asset.rooms + ' hab.' : '') + '</div>' +
-      (asset.url ? '<a href="' + escD(asset.url) + '" target="_blank" rel="noopener" style="font-size:10px;color:#ba7517;text-decoration:none">Ver anuncio ↗</a>' : '') +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+      thumbHtml +
+      '<div>' +
+        '<div data-action="analyze-asset" data-id="' + asset.id + '" style="font-weight:500;color:#ba7517;font-size:12px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" title="Abrir análisis">' + escD(asset.title || asset.address || '—') + '</div>' +
+        '<div style="color:#aaa;font-size:10px;margin-top:2px">' + escD(asset.city || '') + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + (asset.surface ? ' · ' + asset.surface + ' m²' : '') + (asset.rooms ? ' · ' + asset.rooms + ' hab.' : '') + '</div>' +
+        (asset.url ? '<a href="' + escD(asset.url) + '" target="_blank" rel="noopener" style="font-size:10px;color:#ba7517;text-decoration:none">Ver anuncio ↗</a>' : '') +
+      '</div>' +
+      '</div>' +
     '</td>' +
     '<td style="padding:8px;text-align:right;font-family:\'Courier New\',monospace;font-weight:600;white-space:nowrap">' + moneyD(asset.price) + '</td>' +
     '<td style="padding:8px;text-align:right;font-family:\'Courier New\',monospace;color:#888;font-size:11px">' + pm2 + '</td>' +
     '<td style="padding:8px;text-align:center;font-size:11px">' + agentCell + '</td>' +
     '<td style="padding:8px;text-align:center;font-size:11px">' + visitCell + '</td>' +
-    '<td style="padding:8px;font-size:11px;color:#555;max-width:180px;word-break:break-word">' + escD(asset.notes || '—') + '</td>' +
     '<td style="padding:8px;text-align:center;white-space:nowrap">' +
       '<div style="display:flex;gap:4px;justify-content:center">' + btnEdit + btnAnalyze + btnDel + '</div>' +
     '</td>' +
@@ -249,7 +258,6 @@ function renderTable(assets, showArchived) {
     '<th style="padding:8px;text-align:right">€/m²</th>' +
     '<th style="padding:8px;text-align:center">Contactado</th>' +
     '<th style="padding:8px;text-align:center">Visita</th>' +
-    '<th style="padding:8px;text-align:left">Notas</th>' +
     '<th style="padding:8px;text-align:center">Acciones</th>' +
     '</tr></thead>';
 
@@ -389,6 +397,16 @@ function renderModal(asset) {
 
     '</div>' +
 
+    '<input type="hidden" id="df-foto-urls" value="' + escD(JSON.stringify(asset.foto_urls || [])) + '">' +
+
+    // Photo strip preview (if existing photos)
+    (asset.foto_urls && asset.foto_urls.length ?
+      '<div style="margin-top:12px;display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">' +
+      asset.foto_urls.slice(0, 8).map(function(u) {
+        return '<img src="' + escD(u) + '" style="width:72px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
+      }).join('') +
+      '</div>' : '') +
+
     '<div style="display:flex;gap:10px;margin-top:22px;justify-content:flex-end">' +
     '<button id="dash-modal-cancel" style="padding:10px 20px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;cursor:pointer;font-family:inherit;font-size:13px">Cancelar</button>' +
     '<button id="dash-modal-save" data-id="' + escD(asset.id || '') + '" style="padding:10px 22px;border:none;border-radius:8px;background:#ba7517;color:#fff;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500">' + (isEdit ? 'Guardar cambios' : 'Añadir activo') + '</button>' +
@@ -467,6 +485,10 @@ window.runAIFill = async function(mode) {
     if (data.condition)    setSelect('df-condition',     data.condition);
     if (data.source)       setSelect('df-source',        data.source);
     if (url && !document.getElementById('df-url').value) setField('df-url', url.trim());
+    if (data.foto_urls && data.foto_urls.length) {
+      var fotoEl = document.getElementById('df-foto-urls');
+      if (fotoEl) fotoEl.value = JSON.stringify(data.foto_urls);
+    }
 
     var basicMap = {title: titleVal, ciudad: cityVal, barrio: data.neighborhood,
                     precio: data.price, m2: m2Val, habitaciones: roomsVal,
@@ -587,7 +609,8 @@ function readForm(existingId) {
     offerAmount:   nv('df-offerAmount'),
     lat:           nv('df-lat'),
     lng:           nv('df-lng'),
-    notes:         v('df-notes')
+    notes:         v('df-notes'),
+    foto_urls:     (function() { try { return JSON.parse(document.getElementById('df-foto-urls').value || '[]'); } catch(e) { return []; } })()
   };
 }
 
@@ -803,6 +826,9 @@ function analyzeAsset(id) {
 
   // Show asset name in header
   if (typeof window.setActiveAssetLabel === 'function') window.setActiveAssetLabel(asset.title || asset.address || '');
+
+  // Show all tabs
+  document.querySelectorAll('#main-tabs .app-tab').forEach(function(t) { t.style.display = ''; });
 
   var btn = document.querySelector('.tab[data-tab="ap"]');
   if (typeof window.sw === 'function') window.sw('ap', btn);

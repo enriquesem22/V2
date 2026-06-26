@@ -19,16 +19,16 @@
 <div class="app">
 <div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.25</span>
 <button id="pwa-install-btn" onclick="installPWA()" style="display:none;margin-left:auto;padding:5px 12px;border:1px solid #ba7517;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#ba7517;font-weight:500">+ Añadir a inicio</button></div>
-<div class="tabs">
+<div class="tabs" id="main-tabs">
   <button class="tab active" data-tab="dp" onclick="sw('dp',this);loadDashboard()">Dashboard</button>
-  <button class="tab" data-tab="ap" onclick="sw('ap',this)">Activo</button>
-  <button class="tab" data-tab="mp" onclick="sw('mp',this)">Mercado</button>
-  <button class="tab" data-tab="pp" onclick="sw('pp',this)">Presupuesto</button>
-  <button class="tab" data-tab="fp" onclick="sw('fp',this)">Flip</button>
-  <button class="tab" data-tab="bp" onclick="sw('bp',this)">Buy to rent</button>
-  <button class="tab" data-tab="ip" onclick="sw('ip',this)">Importar</button>
-  <button class="tab" data-tab="tp" onclick="sw('tp',this);loadTracking()">Tracking</button>
-  <button class="tab" data-tab="pp2" onclick="sw('pp2',this);loadPortfolio()">Portfolio</button>
+  <button class="tab app-tab" data-tab="ap" onclick="sw('ap',this)" style="display:none">Activo</button>
+  <button class="tab app-tab" data-tab="mp" onclick="sw('mp',this)" style="display:none">Mercado</button>
+  <button class="tab app-tab" data-tab="pp" onclick="sw('pp',this)" style="display:none">Presupuesto</button>
+  <button class="tab app-tab" data-tab="fp" onclick="sw('fp',this)" style="display:none">Flip</button>
+  <button class="tab app-tab" data-tab="bp" onclick="sw('bp',this)" style="display:none">Buy to rent</button>
+  <button class="tab app-tab" data-tab="ip" onclick="sw('ip',this)" style="display:none">Importar</button>
+  <button class="tab app-tab" data-tab="tp" onclick="sw('tp',this);loadTracking()" style="display:none">Tracking</button>
+  <button class="tab app-tab" data-tab="pp2" onclick="sw('pp2',this);loadPortfolio()" style="display:none">Portfolio</button>
 </div>
 <div id="dp" class="panel active"><div id="dp-content"></div></div>
 <div id="ap" class="panel"><div class="g2"><div id="si"></div><div id="sr"></div></div></div>
