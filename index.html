@@ -24,6 +24,7 @@
 </div></div>
 <div class="tabs" id="main-tabs">
   <button class="tab active" data-tab="dp" onclick="sw('dp',this);loadDashboard()">Dashboard</button>
+  <button class="tab app-tab" id="tab-adp" data-tab="adp" onclick="sw('adp',this)" style="display:none">Ficha</button>
   <button class="tab app-tab" data-tab="ap" onclick="sw('ap',this)" style="display:none">Activo</button>
   <button class="tab app-tab" data-tab="mp" onclick="sw('mp',this)" style="display:none">Mercado</button>
   <button class="tab app-tab" data-tab="pp" onclick="sw('pp',this)" style="display:none">Presupuesto</button>
@@ -34,6 +35,7 @@
   <button class="tab app-tab" data-tab="pp2" onclick="sw('pp2',this);loadPortfolio()" style="display:none">Portfolio</button>
 </div>
 <div id="dp" class="panel active"><div id="dp-content"></div></div>
+<div id="adp" class="panel"><div id="adp-content"></div></div>
 <div id="ap" class="panel"><div class="g2"><div id="si"></div><div id="sr"></div></div></div>
 <div id="mp" class="panel"><div class="g2"><div id="mi"></div><div id="mr"></div></div></div>
 <div id="pp" class="panel"><div id="presupuesto"></div></div>

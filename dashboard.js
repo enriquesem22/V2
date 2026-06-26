@@ -204,7 +204,7 @@ function renderRow(asset, i) {
     ? '<span style="color:#16a34a;font-size:15px">✓</span>' + (asset.contactDate ? '<div style="font-size:9px;color:#aaa">' + asset.contactDate + '</div>' : '')
     : '<span style="color:#d1d5db;font-size:15px">○</span>';
   var btnEdit    = '<button data-action="edit-asset"    data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #ba7517;border-radius:5px;background:#fff;color:#ba7517;cursor:pointer;font-size:11px;font-family:inherit">Editar</button>';
-  var btnAnalyze = '<button data-action="analyze-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #16a34a;border-radius:5px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-family:inherit">Analizar</button>';
+  var btnAnalyze = '<button data-action="analyze-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #16a34a;border-radius:5px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-family:inherit">Ver ficha</button>';
   var btnDel     = '<button data-action="delete-asset"  data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #fca5a5;border-radius:5px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:11px;font-family:inherit">×</button>';
 
   var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls : [];
@@ -756,6 +756,158 @@ async function importFromWatchlist() {
   if (el) renderDashboard(el);
 }
 
+// ── ASSET DETAIL (FICHA) ──────────────────────────────────────────────────────
+
+function calcFlip(asset) {
+  var p = parseFloat(asset.price), m2 = parseFloat(asset.surface);
+  if (!isFinite(p) || !isFinite(m2) || p <= 0 || m2 <= 0) return null;
+  var refMap = { a_reformar: 550, segunda_mano: 150, buen_estado: 50, reformado: 0, obra_nueva: 0 };
+  var refPm2 = refMap[asset.condition] !== undefined ? refMap[asset.condition] : 300;
+  var buyC   = Math.round(p * 0.11);
+  var refC   = Math.round(m2 * refPm2);
+  var total  = p + buyC + refC;
+  var sale   = Math.round(total * 1.25);
+  var profit = sale - total;
+  var roi    = Math.round((profit / total) * 100);
+  return { p: p, m2: m2, ppm2: Math.round(p/m2), refPm2: refPm2, buyC: buyC, refC: refC, total: total, sale: sale, profit: profit, roi: roi };
+}
+
+function renderAssetDetail(asset) {
+  var el = document.getElementById('adp-content');
+  if (!el) return;
+
+  var flip = calcFlip(asset);
+  var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls.filter(Boolean) : [];
+  var stageC = stageCfg(asset.stage);
+
+  // ── Fotos ──
+  var photosHtml = photos.length
+    ? '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:thin">' +
+      photos.map(function(u) {
+        return '<img src="' + escD(u) + '" style="height:180px;min-width:240px;object-fit:cover;border-radius:10px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
+      }).join('') + '</div>'
+    : '';
+
+  // ── Helpers ──
+  function row(label, value, color) {
+    if (!value && value !== 0) return '';
+    return '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid #f5f5f0">' +
+      '<span style="font-size:11px;color:#888">' + label + '</span>' +
+      '<span style="font-size:13px;font-weight:500;color:' + (color || '#1a1a1a') + '">' + value + '</span>' +
+      '</div>';
+  }
+  function card(title, body, accent) {
+    return '<div style="background:#fff;border:1px solid #e5e5e0;border-radius:12px;padding:16px 18px;margin-bottom:14px">' +
+      '<div style="font-size:11px;font-weight:600;color:' + (accent || '#555') + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">' + title + '</div>' +
+      body + '</div>';
+  }
+
+  // ── Datos básicos ──
+  var basicBody =
+    row('Precio', moneyD(asset.price), '#ba7517') +
+    row('Superficie', asset.surface ? asset.surface + ' m²' : null) +
+    row('Precio/m²', (asset.price && asset.surface) ? Math.round(asset.price / asset.surface).toLocaleString('es-ES') + ' €/m²' : null) +
+    row('Habitaciones', asset.rooms ? asset.rooms + ' hab.' : null) +
+    row('Estado', asset.condition ? CONDITION_OPTIONS[asset.condition] || asset.condition : null) +
+    row('Fuente', asset.source) +
+    (asset.url ? '<div style="padding:7px 0;border-bottom:1px solid #f5f5f0"><a href="' + escD(asset.url) + '" target="_blank" rel="noopener" style="font-size:12px;color:#ba7517;text-decoration:none">Ver anuncio ↗</a></div>' : '');
+
+  // ── Localización ──
+  var locParts = [asset.city, asset.neighborhood, asset.province].filter(Boolean);
+  var locBody = locParts.length ? row('Ubicación', locParts.join(' · ')) : '<div style="font-size:11px;color:#aaa">Sin datos de ubicación</div>';
+
+  // ── Pipeline CRM ──
+  var crmBody =
+    row('Estado pipeline', stageC.label) +
+    row('Prioridad', asset.priority ? 'Prioridad ' + asset.priority : null) +
+    row('Agente contactado', asset.contactedAgent ? '✓ Sí' : '○ No') +
+    row('Fecha contacto', asset.contactDate) +
+    row('Fecha visita', asset.visitDate, '#8b5cf6') +
+    row('Importe oferta', asset.offerAmount ? moneyD(asset.offerAmount) : null, '#ef4444');
+
+  // ── Análisis flip ──
+  var flipBody;
+  if (flip) {
+    var roiColor = flip.roi >= 20 ? '#16a34a' : flip.roi >= 10 ? '#d97706' : '#dc2626';
+    flipBody =
+      row('Precio de compra', moneyD(flip.p)) +
+      row('Gastos compra (11%)', moneyD(flip.buyC)) +
+      row('Reforma est. (' + flip.refPm2 + ' €/m²)', moneyD(flip.refC)) +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:2px solid #e5e5e0;margin-top:4px">' +
+        '<span style="font-size:11px;font-weight:600;color:#1a1a1a">Inversión total</span>' +
+        '<span style="font-size:15px;font-weight:700;color:#1a1a1a;font-family:\'Courier New\',monospace">' + moneyD(flip.total) + '</span>' +
+      '</div>' +
+      row('Precio venta est. (×1.25)', moneyD(flip.sale), '#16a34a') +
+      row('Beneficio bruto', moneyD(flip.profit), '#16a34a') +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;margin-top:4px">' +
+        '<span style="font-size:12px;font-weight:600;color:#555">ROI estimado</span>' +
+        '<span style="font-size:24px;font-weight:700;color:' + roiColor + ';font-family:\'Courier New\',monospace">' + flip.roi + '%</span>' +
+      '</div>';
+  } else {
+    flipBody = '<div style="font-size:11px;color:#aaa">Introduce precio y superficie para calcular el flip.</div>';
+  }
+
+  // ── Notas ──
+  var notasBody = asset.notes
+    ? '<div style="font-size:12px;color:#444;line-height:1.7;white-space:pre-wrap">' + escD(asset.notes) + '</div>'
+    : '<div style="font-size:11px;color:#aaa">Sin notas.</div>';
+
+  // ── Layout ──
+  el.innerHTML =
+    '<div style="max-width:900px">' +
+
+    // Header
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">' +
+      '<div>' +
+        '<div style="font-size:18px;font-weight:600;color:#1a1a1a;margin-bottom:4px">' + escD(asset.title || asset.address || 'Sin título') + '</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+          stageBadge(asset.stage) + ' ' + prioBadge(asset.priority) +
+          (asset.city ? '<span style="font-size:11px;color:#888">' + escD(asset.city) + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button data-action="edit-asset" data-id="' + asset.id + '" style="padding:8px 16px;border:1px solid #ba7517;border-radius:8px;background:#fff;color:#ba7517;cursor:pointer;font-size:12px;font-family:inherit;font-weight:500">Editar ficha</button>' +
+        '<button onclick="sw(\'dp\',document.querySelector(\'.tab[data-tab=dp]\'));loadDashboard()" style="padding:8px 16px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;cursor:pointer;font-size:12px;font-family:inherit">← Dashboard</button>' +
+      '</div>' +
+    '</div>' +
+
+    // Fotos
+    photosHtml +
+
+    // Grid 2 columnas en pantallas grandes
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+
+      '<div>' +
+        card('Datos del inmueble', basicBody) +
+        card('Localización', locBody) +
+        card('Notas', notasBody) +
+      '</div>' +
+
+      '<div>' +
+        card('Pipeline CRM', crmBody) +
+        card('Análisis Flip', flipBody, '#ba7517') +
+      '</div>' +
+
+    '</div>' +
+    '</div>';
+
+  // Bind edit button
+  el.querySelector('[data-action="edit-asset"]').addEventListener('click', function() {
+    window.openEditAsset(asset.id);
+  });
+}
+
+window.openAssetDetail = function(id) {
+  var asset = getDashboardAssets().find(function(a) { return a.id === id; });
+  if (!asset) return;
+  renderAssetDetail(asset);
+  // Show tabs and navigate to Ficha
+  document.querySelectorAll('#main-tabs .app-tab').forEach(function(t) { t.style.display = ''; });
+  var tabBtn = document.getElementById('tab-adp');
+  if (tabBtn) tabBtn.textContent = escD((asset.title || asset.address || 'Ficha').substring(0, 22));
+  if (typeof window.sw === 'function') window.sw('adp', document.querySelector('.tab[data-tab="adp"]'));
+};
+
 // ── ACTIONS ───────────────────────────────────────────────────────────────────
 
 async function deleteAsset(id) {
@@ -788,50 +940,7 @@ function analyzeAsset(id) {
   var asset = getDashboardAssets().find(function(a) { return a.id === id; });
   if (!asset) return;
 
-  if (window.S) {
-    if (asset.price)   window.S.pc  = Math.round(asset.price);
-  }
-  if (window.F) {
-    if (asset.surface) window.F.sup = Math.round(asset.surface);
-  }
-
-  // Try to set location from GEO data
-  if (window.GEO && (asset.city || asset.neighborhood)) {
-    var geo = window.GEO;
-    var cityLower = (asset.city || '').toLowerCase();
-    var nbLower   = (asset.neighborhood || '').toLowerCase();
-    Object.keys(geo).forEach(function(prov) {
-      var muns = geo[prov].municipios || {};
-      Object.keys(muns).forEach(function(mun) {
-        if (mun.toLowerCase().includes(cityLower) || cityLower.includes(mun.toLowerCase())) {
-          window.SEL = window.SEL || {};
-          window.SEL.prov = prov;
-          window.SEL.mun  = mun;
-          window.SEL.bar  = '';
-          window.SEL.sub  = '';
-          var bars = muns[mun].barrios || {};
-          Object.keys(bars).forEach(function(bar) {
-            if (nbLower && bar.toLowerCase().includes(nbLower)) window.SEL.bar = bar;
-          });
-        }
-      });
-    });
-    if (typeof window.rebuildSelects === 'function') setTimeout(window.rebuildSelects, 80);
-    if (typeof window.doMapUpdate    === 'function') setTimeout(window.doMapUpdate,    200);
-  }
-
-  ['rSI','rSR','rFI','rFR','rBI','rBR'].forEach(function(fn) {
-    if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
-  });
-
-  // Show asset name in header
-  if (typeof window.setActiveAssetLabel === 'function') window.setActiveAssetLabel(asset.title || asset.address || '');
-
-  // Show all tabs
-  document.querySelectorAll('#main-tabs .app-tab').forEach(function(t) { t.style.display = ''; });
-
-  var btn = document.querySelector('.tab[data-tab="ap"]');
-  if (typeof window.sw === 'function') window.sw('ap', btn);
+  window.openAssetDetail(asset.id);
 }
 
 // ── MAIN RENDER ───────────────────────────────────────────────────────────────
