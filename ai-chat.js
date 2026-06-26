@@ -89,55 +89,85 @@ function cleanHtml(html) {
     .trim();
 }
 
+async function tryFetch(label, fetchFn, onStatus, minLen) {
+  minLen = minLen || 300;
+  try {
+    onStatus('Leyendo (' + label + ')...', '#d97706');
+    var result = await fetchFn();
+    if (result && result.length >= minLen) return result;
+    console.log(label + ': contenido muy corto (' + (result ? result.length : 0) + ' chars)');
+  } catch(e) {
+    console.log(label + ' error:', e.name === 'AbortError' ? 'timeout' : e.message);
+  }
+  return null;
+}
+
+function abortAfter(ms) {
+  var c = new AbortController();
+  setTimeout(function() { c.abort(); }, ms);
+  return c;
+}
+
 window.readPageForFill = async function(url, onStatus) {
   onStatus = onStatus || function() {};
-  var text = '';
+  var text = null;
 
-  // 1. Jina AI Reader
-  onStatus('Leyendo página (Jina)...', '#d97706');
-  try {
-    var c1 = new AbortController();
-    setTimeout(function() { c1.abort(); }, 14000);
-    var r1 = await fetch('https://r.jina.ai/' + url, {
-      headers: { 'Accept': 'text/plain', 'X-Return-Format': 'markdown', 'X-Timeout': '10' },
-      signal: c1.signal
-    });
-    if (r1.ok) {
-      var t1 = (await r1.text()).replace(/\n{3,}/g, '\n\n').trim();
-      if (t1.length > 400) { text = t1.substring(0, 7000); }
-    }
-  } catch(e) { console.log('Jina failed:', e.message); }
+  // 1. Jina AI — GET simple sin headers custom (evita CORS preflight)
+  text = await tryFetch('Jina', async function() {
+    var c = abortAfter(16000);
+    var r = await fetch('https://r.jina.ai/' + url, { signal: c.signal });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return (await r.text()).replace(/\n{3,}/g, '\n\n').trim().substring(0, 8000);
+  }, onStatus);
 
-  // 2. allorigins.win
+  // 2. Jina a través de allorigins (meta-proxy: evita CORS del navegador)
   if (!text) {
-    onStatus('Probando proxy alternativo...', '#d97706');
-    try {
-      var c2 = new AbortController();
-      setTimeout(function() { c2.abort(); }, 10000);
-      var r2 = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), { signal: c2.signal });
-      if (r2.ok) {
-        var d2 = await r2.json();
-        var t2 = cleanHtml(d2.contents || '').substring(0, 7000);
-        if (t2.length > 400) { text = t2; }
-      }
-    } catch(e) { console.log('allorigins failed:', e.message); }
+    text = await tryFetch('Jina+proxy', async function() {
+      var jinaUrl = 'https://r.jina.ai/' + url;
+      var c = abortAfter(18000);
+      var r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(jinaUrl), { signal: c.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var t = (await r.text()).trim();
+      // allorigins puede devolver HTML de error si Jina falla
+      if (t.startsWith('<')) throw new Error('respuesta HTML, no markdown');
+      return t.substring(0, 8000);
+    }, onStatus);
   }
 
-  // 3. corsproxy.io
+  // 3. allorigins directo (HTML del anuncio)
   if (!text) {
-    onStatus('Probando corsproxy...', '#d97706');
-    try {
-      var c3 = new AbortController();
-      setTimeout(function() { c3.abort(); }, 10000);
-      var r3 = await fetch('https://corsproxy.io/?' + encodeURIComponent(url), { signal: c3.signal });
-      if (r3.ok) {
-        var t3 = cleanHtml(await r3.text()).substring(0, 7000);
-        if (t3.length > 400) { text = t3; }
-      }
-    } catch(e) { console.log('corsproxy failed:', e.message); }
+    text = await tryFetch('allorigins', async function() {
+      var c = abortAfter(12000);
+      var r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), { signal: c.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var d = await r.json();
+      return cleanHtml(d.contents || '').substring(0, 8000);
+    }, onStatus);
   }
 
-  return text;
+  // 4. corsproxy.io directo
+  if (!text) {
+    text = await tryFetch('corsproxy', async function() {
+      var c = abortAfter(12000);
+      var r = await fetch('https://corsproxy.io/?' + encodeURIComponent(url), { signal: c.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return cleanHtml(await r.text()).substring(0, 8000);
+    }, onStatus);
+  }
+
+  // 5. htmlreader.vercel.app — proxy alternativo
+  if (!text) {
+    text = await tryFetch('htmlreader', async function() {
+      var c = abortAfter(12000);
+      var r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://r.jina.ai/' + encodeURIComponent(url)), { signal: c.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var t = (await r.text()).trim();
+      if (t.startsWith('<')) throw new Error('HTML en lugar de texto');
+      return t.substring(0, 8000);
+    }, onStatus);
+  }
+
+  return text || '';
 };
 
 // ── FILL ASSET FROM TEXT (AI extraction) ──────────────────────────────────────
@@ -184,7 +214,12 @@ window.analyzeTextForAsset = async function(text, onStatus) {
 window.fillAssetWithAI = async function(url, onStatus) {
   onStatus = onStatus || function() {};
   var text = await window.readPageForFill(url, onStatus);
-  if (!text) throw new Error('No se pudo leer la página por ningún método. Usa el modo "Pegar texto" debajo.');
+  if (!text) {
+    throw new Error(
+      'Idealista y Solvia bloquean lectores automáticos. ' +
+      'Usa la opción "Pegar texto": abre el anuncio, selecciona todo (Ctrl+A), copia (Ctrl+C) y pégalo en el área de texto.'
+    );
+  }
   onStatus('Leídos ' + text.length + ' caracteres. Analizando...', '#d97706');
   return window.analyzeTextForAsset(text, onStatus);
 };
