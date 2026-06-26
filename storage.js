@@ -718,14 +718,21 @@ window.githubLoadDashboardAssets = async function() {
     });
     if (r.status === 404) return [];
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    var files = await r.json();
+    var entries = await r.json();
     var assets = [];
-    for (var i = 0; i < files.length; i++) {
-      if (!files[i].name.endsWith('.json')) continue;
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
       try {
-        var fileData = await ghGetFile(files[i].path || ('dashboard/' + files[i].name));
-        if (fileData && fileData.content) assets.push(fileData.content);
-      } catch(e2) { console.warn('Error loading', files[i].name, e2); }
+        if (entry.type === 'dir') {
+          // Nuevo formato: dashboard/{nombre}/asset.json
+          var fileData = await ghGetFile(entry.path + '/asset.json');
+          if (fileData && fileData.content) assets.push(fileData.content);
+        } else if (entry.type === 'file' && entry.name.endsWith('.json')) {
+          // Formato antiguo: dashboard/{id}.json
+          var fileData2 = await ghGetFile(entry.path);
+          if (fileData2 && fileData2.content) assets.push(fileData2.content);
+        }
+      } catch(e2) { console.warn('Error loading', entry.name, e2); }
     }
     return assets;
   } catch(e) {
