@@ -867,7 +867,7 @@ function renderAssetDetail(asset) {
       '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
         '<button data-action="edit-asset" data-id="' + asset.id + '" style="padding:8px 16px;border:1px solid #ba7517;border-radius:8px;background:#fff;color:#ba7517;cursor:pointer;font-size:12px;font-family:inherit;font-weight:500">Editar ficha</button>' +
-        '<button onclick="sw(\'dp\',document.querySelector(\'.tab[data-tab=dp]\'));loadDashboard()" style="padding:8px 16px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;cursor:pointer;font-size:12px;font-family:inherit">← Dashboard</button>' +
+        '<button onclick="volverAlDashboard()" style="padding:8px 16px;border:1px solid #e5e5e0;border-radius:8px;background:#fff;color:#555;cursor:pointer;font-size:12px;font-family:inherit">← Dashboard</button>' +
       '</div>' +
     '</div>' +
 
@@ -901,11 +901,18 @@ window.openAssetDetail = function(id) {
   var asset = getDashboardAssets().find(function(a) { return a.id === id; });
   if (!asset) return;
   renderAssetDetail(asset);
-  // Show tabs and navigate to Ficha
-  document.querySelectorAll('#main-tabs .app-tab').forEach(function(t) { t.style.display = ''; });
-  var tabBtn = document.getElementById('tab-adp');
-  if (tabBtn) tabBtn.textContent = escD((asset.title || asset.address || 'Ficha').substring(0, 22));
-  if (typeof window.sw === 'function') window.sw('adp', document.querySelector('.tab[data-tab="adp"]'));
+  // Ocultar TODOS los tabs (incluido dashboard) — la ficha es página completa
+  document.querySelectorAll('#main-tabs .tab').forEach(function(t) { t.style.display = 'none'; });
+  if (typeof window.sw === 'function') window.sw('adp', null);
+};
+
+window.volverAlDashboard = function() {
+  // Restaurar solo el tab Dashboard y navegar a él
+  document.querySelectorAll('#main-tabs .tab').forEach(function(t) { t.style.display = 'none'; });
+  var dpTab = document.querySelector('.tab[data-tab="dp"]');
+  if (dpTab) dpTab.style.display = '';
+  if (typeof window.sw === 'function') window.sw('dp', dpTab);
+  if (typeof window.loadDashboard === 'function') window.loadDashboard();
 };
 
 // ── ACTIONS ───────────────────────────────────────────────────────────────────

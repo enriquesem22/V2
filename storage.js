@@ -76,7 +76,7 @@ async function ghGetFile(filename){
   if(r.status===404) return null;
   if(!r.ok) throw new Error('Error leyendo '+filename+': '+r.status);
   const d = await r.json();
-  return { content: JSON.parse(atob(d.content.replace(/\n/g,''))), sha: d.sha };
+  return { content: JSON.parse(decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))))), sha: d.sha };
 }
 
 async function ghPutFile(filename, data, sha){
