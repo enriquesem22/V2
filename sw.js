@@ -1,4 +1,4 @@
-const CACHE_NAME = 'return-app-v35';
+const CACHE_NAME = 'return-app-v36';
 
 const LOCAL_ASSETS = [
   '/manifest.json',
@@ -21,6 +21,7 @@ const APP_ASSETS = [
   '/tracking-ux-v215.js',
   '/state-patch.js',
   '/import.js',
+  '/dashboard.js',
   '/data/watchlist.json',
   '/data/watchlist-manresa.json',
   '/data/watchlist-san-juan.json',

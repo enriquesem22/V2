@@ -272,10 +272,11 @@ window.ts=(id)=>{OS[id]=!OS[id];const b=document.getElementById(id),a=document.g
 window.sw=function(pid,btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  ['ap','mp','pp','fp','bp','ip','pp2'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
   const panel=document.getElementById(pid);
   if(panel) panel.classList.add('active');
   if(pid==='ap'&&mapObj) setTimeout(()=>mapObj.invalidateSize(),80);
+  if(pid==='dp') setTimeout(()=>{ if(typeof window.invalidateDashMap==='function') window.invalidateDashMap(); },100);
   if(pid==='mp') setTimeout(()=>{rMKT();if(mapObj)setTimeout(()=>mapObj.invalidateSize(),150);},50);
   if(pid==='ip') setTimeout(initImport,50);
   if(pid==='pp2') setTimeout(()=>window.loadPortfolio(),50);

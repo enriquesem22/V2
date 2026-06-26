@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Return — Analizador de inversión inmobiliaria</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="styles.css?v=2.18">
+<link rel="stylesheet" href="styles.css?v=2.19">
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ba7517">
@@ -17,10 +17,11 @@
 </head>
 <body>
 <div class="app">
-<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.18</span>
+<div class="hdr"><span class="hdr-t">Return</span><span class="hdr-s">Analizador de inversión inmobiliaria</span><span style="font-size:11px;color:#ba7517;margin-left:8px;font-weight:500">v2.19</span>
 <button id="pwa-install-btn" onclick="installPWA()" style="display:none;margin-left:auto;padding:5px 12px;border:1px solid #ba7517;border-radius:6px;background:#fff;font-size:11px;cursor:pointer;font-family:inherit;color:#ba7517;font-weight:500">+ Añadir a inicio</button></div>
 <div class="tabs">
-  <button class="tab active" data-tab="ap" onclick="sw('ap',this)">Activo</button>
+  <button class="tab active" data-tab="dp" onclick="sw('dp',this);loadDashboard()">Dashboard</button>
+  <button class="tab" data-tab="ap" onclick="sw('ap',this)">Activo</button>
   <button class="tab" data-tab="mp" onclick="sw('mp',this)">Mercado</button>
   <button class="tab" data-tab="pp" onclick="sw('pp',this)">Presupuesto</button>
   <button class="tab" data-tab="fp" onclick="sw('fp',this)">Flip</button>
@@ -29,7 +30,8 @@
   <button class="tab" data-tab="tp" onclick="sw('tp',this);loadTracking()">Tracking</button>
   <button class="tab" data-tab="pp2" onclick="sw('pp2',this);loadPortfolio()">Portfolio</button>
 </div>
-<div id="ap" class="panel active"><div class="g2"><div id="si"></div><div id="sr"></div></div></div>
+<div id="dp" class="panel active"><div id="dp-content"></div></div>
+<div id="ap" class="panel"><div class="g2"><div id="si"></div><div id="sr"></div></div></div>
 <div id="mp" class="panel"><div class="g2"><div id="mi"></div><div id="mr"></div></div></div>
 <div id="pp" class="panel"><div id="presupuesto"></div></div>
 <div id="fp" class="panel"><div class="g2"><div id="fi"></div><div id="fr"></div></div></div>
@@ -43,19 +45,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 
 <!-- Módulos de la app — orden de carga importante -->
-<script src="geo-data.js?v=2.18"></script>
-<script src="finance.js?v=2.18"></script>
-<script src="app.js?v=2.18"></script>
-<script src="market.js?v=2.18"></script>
-<script src="portfolio.js?v=2.18"></script>
-<script src="portfolio-full-save-patch.js?v=2.18"></script>
-<script src="storage.js?v=2.18"></script>
-<script src="tracking-hotfix-v214.js?v=2.18"></script>
-<script src="tracking.js?v=2.18"></script>
-<script src="tracking-ux-v215.js?v=2.18"></script>
-<script src="tracking-scope-fix.js?v=2.18"></script>
-<script src="state-patch.js?v=2.18"></script>
-<script src="import.js?v=2.18"></script>
+<script src="geo-data.js?v=2.19"></script>
+<script src="finance.js?v=2.19"></script>
+<script src="app.js?v=2.19"></script>
+<script src="market.js?v=2.19"></script>
+<script src="portfolio.js?v=2.19"></script>
+<script src="portfolio-full-save-patch.js?v=2.19"></script>
+<script src="storage.js?v=2.19"></script>
+<script src="tracking-hotfix-v214.js?v=2.19"></script>
+<script src="tracking.js?v=2.19"></script>
+<script src="tracking-ux-v215.js?v=2.19"></script>
+<script src="tracking-scope-fix.js?v=2.19"></script>
+<script src="state-patch.js?v=2.19"></script>
+<script src="import.js?v=2.19"></script>
+<script src="dashboard.js?v=2.19"></script>
 
 <!-- Arranque: render inicial después de que todos los módulos hayan cargado -->
 <script>
@@ -103,7 +106,7 @@ window.installPWA = async function(){
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('/sw.js?v=2.18').then(reg=>{
+    navigator.serviceWorker.register('/sw.js?v=2.19').then(reg=>{
       console.log('SW registrado:', reg.scope);
       reg.addEventListener('updatefound', ()=>{
         const newWorker = reg.installing;
