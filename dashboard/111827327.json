@@ -11,7 +11,7 @@
   "rooms": 3,
   "condition": "buen_estado",
   "stage": "analizando",
-  "priority": "D",
+  "priority": "A",
   "contactedAgent": false,
   "contactDate": null,
   "visitDate": null,
