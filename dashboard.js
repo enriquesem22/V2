@@ -201,7 +201,7 @@ function renderRow(asset, i) {
     '<td style="padding:8px">' + stageBadge(asset.stage) + '</td>' +
     '<td style="padding:8px;font-size:11px;color:#ba7517;font-weight:500">' + escD(asset.source || '—') + '</td>' +
     '<td style="padding:8px;min-width:190px">' +
-      '<div style="font-weight:500;color:#1a1a1a;font-size:12px">' + escD(asset.title || asset.address || '—') + '</div>' +
+      '<div data-action="analyze-asset" data-id="' + asset.id + '" style="font-weight:500;color:#ba7517;font-size:12px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" title="Abrir análisis">' + escD(asset.title || asset.address || '—') + '</div>' +
       '<div style="color:#aaa;font-size:10px;margin-top:2px">' + escD(asset.city || '') + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + (asset.surface ? ' · ' + asset.surface + ' m²' : '') + (asset.rooms ? ' · ' + asset.rooms + ' hab.' : '') + '</div>' +
       (asset.url ? '<a href="' + escD(asset.url) + '" target="_blank" rel="noopener" style="font-size:10px;color:#ba7517;text-decoration:none">Ver anuncio ↗</a>' : '') +
     '</td>' +
@@ -316,9 +316,20 @@ function renderModal(asset) {
   return '<div id="dash-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px">' +
     '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22)">' +
 
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">' +
     '<div style="font-size:17px;font-weight:500;color:#1a1a1a">' + (isEdit ? 'Editar activo' : 'Añadir nuevo activo') + '</div>' +
     '<button id="dash-modal-close" style="border:none;background:none;font-size:22px;cursor:pointer;color:#aaa;line-height:1;padding:0 4px">×</button>' +
+    '</div>' +
+
+    // AI fill section
+    '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-bottom:18px">' +
+    '<div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:8px">✨ Rellenar con IA</div>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+    '<input id="df-ai-url" type="url" placeholder="Pega el link del anuncio (Idealista, Solvia, Fotocasa...)" ' +
+    'style="flex:1;padding:8px 10px;border:1px solid #fcd34d;border-radius:6px;font-size:12px;font-family:inherit;outline:none;background:#fff;color:#1a1a1a">' +
+    '<button id="df-ai-btn" onclick="runAIFill()" style="padding:8px 14px;border:none;border-radius:6px;background:#d97706;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap">Rellenar →</button>' +
+    '</div>' +
+    '<div id="df-ai-status" style="font-size:10px;color:#92400e;margin-top:5px;min-height:14px"></div>' +
     '</div>' +
 
     '<div style="' + g2 + '">' +
@@ -369,6 +380,58 @@ function closeModal() {
   var el = document.getElementById('dash-modal-overlay');
   if (el) el.remove();
 }
+
+window.runAIFill = async function() {
+  var url = (document.getElementById('df-ai-url') || {}).value;
+  if (!url || !url.trim()) { alert('Pega primero una URL de anuncio.'); return; }
+
+  if (typeof window.fillAssetWithAI !== 'function') {
+    alert('El módulo de IA no está cargado. Recarga la página.');
+    return;
+  }
+
+  var btn = document.getElementById('df-ai-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Leyendo...'; }
+
+  function setStatus(msg, color) {
+    var el = document.getElementById('df-ai-status');
+    if (el) { el.textContent = msg; el.style.color = color || '#92400e'; }
+  }
+
+  try {
+    var data = await window.fillAssetWithAI(url.trim(), setStatus);
+
+    function setField(id, value) {
+      var el = document.getElementById(id);
+      if (el && value !== null && value !== undefined && value !== '') el.value = value;
+    }
+    function setSelect(id, value) {
+      var el = document.getElementById(id);
+      if (!el || !value) return;
+      for (var i = 0; i < el.options.length; i++) {
+        if (el.options[i].value === String(value)) { el.selectedIndex = i; break; }
+      }
+    }
+
+    if (data.title)        setField('df-title',  data.title);
+    if (data.city)         setField('df-city',   data.city);
+    if (data.neighborhood) setField('df-neighborhood', data.neighborhood);
+    if (data.price)        setField('df-price',  data.price);
+    if (data.surface)      setField('df-surface', data.surface);
+    if (data.rooms)        setField('df-rooms',  data.rooms);
+    if (data.lat)          setField('df-lat',    data.lat);
+    if (data.lng)          setField('df-lng',    data.lng);
+    if (data.condition)    setSelect('df-condition', data.condition);
+    if (data.source)       setSelect('df-source', data.source);
+    if (!document.getElementById('df-url').value && url) setField('df-url', url.trim());
+
+    setStatus('✓ Formulario rellenado. Revisa y ajusta si es necesario.', '#15803d');
+  } catch(e) {
+    setStatus('Error: ' + e.message, '#dc2626');
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Rellenar →'; }
+};
 
 function v(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
 function nv(id) { var x = v(id); return x ? parseFloat(x) : null; }
@@ -518,11 +581,46 @@ function deleteAsset(id) {
 function analyzeAsset(id) {
   var asset = getDashboardAssets().find(function(a) { return a.id === id; });
   if (!asset) return;
-  if (window.S && asset.price) window.S.pc = Math.round(asset.price);
-  if (window.F && asset.surface) window.F.sup = Math.round(asset.surface);
+
+  if (window.S) {
+    if (asset.price)   window.S.pc  = Math.round(asset.price);
+  }
+  if (window.F) {
+    if (asset.surface) window.F.sup = Math.round(asset.surface);
+  }
+
+  // Try to set location from GEO data
+  if (window.GEO && (asset.city || asset.neighborhood)) {
+    var geo = window.GEO;
+    var cityLower = (asset.city || '').toLowerCase();
+    var nbLower   = (asset.neighborhood || '').toLowerCase();
+    Object.keys(geo).forEach(function(prov) {
+      var muns = geo[prov].municipios || {};
+      Object.keys(muns).forEach(function(mun) {
+        if (mun.toLowerCase().includes(cityLower) || cityLower.includes(mun.toLowerCase())) {
+          window.SEL = window.SEL || {};
+          window.SEL.prov = prov;
+          window.SEL.mun  = mun;
+          window.SEL.bar  = '';
+          window.SEL.sub  = '';
+          var bars = muns[mun].barrios || {};
+          Object.keys(bars).forEach(function(bar) {
+            if (nbLower && bar.toLowerCase().includes(nbLower)) window.SEL.bar = bar;
+          });
+        }
+      });
+    });
+    if (typeof window.rebuildSelects === 'function') setTimeout(window.rebuildSelects, 80);
+    if (typeof window.doMapUpdate    === 'function') setTimeout(window.doMapUpdate,    200);
+  }
+
   ['rSI','rSR','rFI','rFR','rBI','rBR'].forEach(function(fn) {
-    if (typeof window[fn] === 'function') { try { window[fn](); } catch (e) {} }
+    if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
   });
+
+  // Show asset name in header
+  if (typeof window.setActiveAssetLabel === 'function') window.setActiveAssetLabel(asset.title || asset.address || '');
+
   var btn = document.querySelector('.tab[data-tab="ap"]');
   if (typeof window.sw === 'function') window.sw('ap', btn);
 }

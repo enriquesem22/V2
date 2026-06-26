@@ -1,4 +1,4 @@
-const CACHE_NAME = 'return-app-v36';
+const CACHE_NAME = 'return-app-v37';
 
 const LOCAL_ASSETS = [
   '/manifest.json',
@@ -22,6 +22,7 @@ const APP_ASSETS = [
   '/state-patch.js',
   '/import.js',
   '/dashboard.js',
+  '/ai-chat.js',
   '/data/watchlist.json',
   '/data/watchlist-manresa.json',
   '/data/watchlist-san-juan.json',
