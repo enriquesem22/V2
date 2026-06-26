@@ -726,7 +726,25 @@ window.githubLoadDashboardAssets = async function() {
         if (entry.type === 'dir') {
           // Nuevo formato: dashboard/{nombre}/asset.json
           var fileData = await ghGetFile(entry.path + '/asset.json');
-          if (fileData && fileData.content) assets.push(fileData.content);
+          if (fileData && fileData.content) {
+            var asset = fileData.content;
+            // Si no tiene foto_portada, buscar imagen en la carpeta del activo
+            if (!asset.foto_portada) {
+              try {
+                var dirR = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/' + entry.path, { headers: ghHeaders() });
+                if (dirR.ok) {
+                  var dirFiles = await dirR.json();
+                  var imgFile = Array.isArray(dirFiles) && dirFiles.find(function(f) {
+                    return f.type === 'file' && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(f.name);
+                  });
+                  if (imgFile) {
+                    asset.foto_portada = 'https://raw.githubusercontent.com/' + GH_REPO + '/main/' + imgFile.path;
+                  }
+                }
+              } catch(e3) { /* sin imagen, continúa */ }
+            }
+            assets.push(asset);
+          }
         } else if (entry.type === 'file' && entry.name.endsWith('.json')) {
           // Formato antiguo: dashboard/{id}.json
           var fileData2 = await ghGetFile(entry.path);
