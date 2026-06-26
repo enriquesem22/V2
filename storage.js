@@ -738,7 +738,8 @@ window.githubLoadDashboardAssets = async function() {
                     return f.type === 'file' && /\.(jpg|jpeg|png|webp|gif|avif)$/i.test(f.name);
                   });
                   if (imgFile) {
-                    asset.foto_portada = 'https://raw.githubusercontent.com/' + GH_REPO + '/main/' + imgFile.path;
+                    // download_url ya viene correctamente codificado por la API
+                    asset.foto_portada = imgFile.download_url;
                   }
                 }
               } catch(e3) { /* sin imagen, continúa */ }
