@@ -208,8 +208,9 @@ function renderRow(asset, i) {
   var btnDel     = '<button data-action="delete-asset"  data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #fca5a5;border-radius:5px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:11px;font-family:inherit">×</button>';
 
   var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls : [];
-  var thumbHtml = photos.length
-    ? '<img src="' + escD(photos[0]) + '" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block" onerror="this.style.display=\'none\'">'
+  var thumbSrc = asset.foto_portada || (photos.length ? photos[0] : '');
+  var thumbHtml = thumbSrc
+    ? '<img src="' + escD(thumbSrc) + '" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block" onerror="this.style.display=\'none\'">'
     : '';
 
   return '<tr style="background:' + (i % 2 ? '#fafaf8' : '#fff') + ';border-top:1px solid #f0f0ea">' +
@@ -390,6 +391,10 @@ function renderModal(asset) {
 
     '<div>' + mkLabel('Latitud (mapa)') + mkInput('df-lat', 'number', asset.lat || '', '37.3898') + '</div>' +
     '<div>' + mkLabel('Longitud (mapa)') + mkInput('df-lng', 'number', asset.lng || '', '-5.9938') + '</div>' +
+
+    '<div style="grid-column:1/-1">' + mkLabel('Foto portada (URL)') +
+    mkInput('df-foto-portada', 'url', asset.foto_portada || '', 'https://...') +
+    '</div>' +
 
     '<div style="grid-column:1/-1">' + mkLabel('Notas') +
     '<textarea id="df-notes" placeholder="Observaciones, próximos pasos, pendientes..." style="width:100%;padding:8px 10px;border:1px solid #e5e5e0;border-radius:6px;font-size:13px;font-family:inherit;color:#1a1a1a;outline:none;box-sizing:border-box;height:80px;resize:vertical">' + escD(asset.notes || '') + '</textarea>' +
@@ -610,6 +615,7 @@ function readForm(existingId) {
     lat:           nv('df-lat'),
     lng:           nv('df-lng'),
     notes:         v('df-notes'),
+    foto_portada:  v('df-foto-portada'),
     foto_urls:     (function() { try { return JSON.parse(document.getElementById('df-foto-urls').value || '[]'); } catch(e) { return []; } })()
   };
 }
@@ -778,13 +784,20 @@ function renderAssetDetail(asset) {
 
   var flip = calcFlip(asset);
   var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls.filter(Boolean) : [];
+  var coverSrc = asset.foto_portada || (photos.length ? photos[0] : '');
   var stageC = stageCfg(asset.stage);
 
-  // ── Fotos ──
-  var photosHtml = photos.length
+  // ── Foto portada ──
+  var coverHtml = coverSrc
+    ? '<img src="' + escD(coverSrc) + '" style="width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">'
+    : '';
+
+  // ── Strip fotos adicionales ──
+  var extraPhotos = photos.filter(function(u) { return u !== coverSrc; });
+  var photosHtml = extraPhotos.length
     ? '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:20px;scrollbar-width:thin">' +
-      photos.map(function(u) {
-        return '<img src="' + escD(u) + '" style="height:180px;min-width:240px;object-fit:cover;border-radius:10px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
+      extraPhotos.map(function(u) {
+        return '<img src="' + escD(u) + '" style="height:140px;min-width:200px;object-fit:cover;border-radius:8px;border:1px solid #e5e5e0;flex-shrink:0" onerror="this.style.display=\'none\'">';
       }).join('') + '</div>'
     : '';
 
@@ -858,11 +871,14 @@ function renderAssetDetail(asset) {
 
     // Header
     '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">' +
-      '<div>' +
-        '<div style="font-size:18px;font-weight:600;color:#1a1a1a;margin-bottom:4px">' + escD(asset.title || asset.address || 'Sin título') + '</div>' +
-        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-          stageBadge(asset.stage) + ' ' + prioBadge(asset.priority) +
-          (asset.city ? '<span style="font-size:11px;color:#888">' + escD(asset.city) + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + '</span>' : '') +
+      '<div style="display:flex;gap:14px;align-items:flex-start">' +
+        coverHtml +
+        '<div>' +
+          '<div style="font-size:18px;font-weight:600;color:#1a1a1a;margin-bottom:4px">' + escD(asset.title || asset.address || 'Sin título') + '</div>' +
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+            stageBadge(asset.stage) + ' ' + prioBadge(asset.priority) +
+            (asset.city ? '<span style="font-size:11px;color:#888">' + escD(asset.city) + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + '</span>' : '') +
+          '</div>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
@@ -900,17 +916,52 @@ function renderAssetDetail(asset) {
 window.openAssetDetail = function(id) {
   var asset = getDashboardAssets().find(function(a) { return a.id === id; });
   if (!asset) return;
+
+  // Poblar calculadores con datos del asset (o dejar en 0 si no hay datos)
+  if (window.S) window.S.pc = asset.price ? Math.round(asset.price) : 0;
+  if (window.F) {
+    window.F.sup = asset.surface ? Math.round(asset.surface) : 0;
+    if (asset.price) window.F.pco = Math.round(asset.price);
+  }
+  if (window.B) {
+    window.B.sup = asset.surface ? Math.round(asset.surface) : 0;
+    if (asset.price) window.B.pco = Math.round(asset.price);
+  }
+  ['rSI','rSR','rFI','rFR','rBI','rBR'].forEach(function(fn) {
+    if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
+  });
+  if (window.GEO && (asset.city || asset.neighborhood)) {
+    var cityLow = (asset.city || '').toLowerCase();
+    var nbLow   = (asset.neighborhood || '').toLowerCase();
+    Object.keys(window.GEO).forEach(function(prov) {
+      var muns = window.GEO[prov].municipios || {};
+      Object.keys(muns).forEach(function(mun) {
+        if (mun.toLowerCase().includes(cityLow) || cityLow.includes(mun.toLowerCase())) {
+          window.SEL = window.SEL || {};
+          window.SEL.prov = prov; window.SEL.mun = mun; window.SEL.bar = ''; window.SEL.sub = '';
+          Object.keys(muns[mun].barrios || {}).forEach(function(bar) {
+            if (nbLow && bar.toLowerCase().includes(nbLow)) window.SEL.bar = bar;
+          });
+        }
+      });
+    });
+    if (typeof window.rebuildSelects === 'function') setTimeout(window.rebuildSelects, 80);
+    if (typeof window.doMapUpdate    === 'function') setTimeout(window.doMapUpdate,    200);
+  }
+
+  // Renderizar ficha
   renderAssetDetail(asset);
-  // Ocultar TODOS los tabs (incluido dashboard) — la ficha es página completa
-  document.querySelectorAll('#main-tabs .tab').forEach(function(t) { t.style.display = 'none'; });
-  if (typeof window.sw === 'function') window.sw('adp', null);
+
+  // Mostrar TODAS las pestañas (contexto de activo)
+  document.querySelectorAll('#main-tabs .tab').forEach(function(t) { t.style.display = ''; });
+
+  // Navegar a Ficha
+  if (typeof window.sw === 'function') window.sw('adp', document.querySelector('.tab[data-tab="adp"]'));
 };
 
 window.volverAlDashboard = function() {
-  // Restaurar solo el tab Dashboard y navegar a él
-  document.querySelectorAll('#main-tabs .tab').forEach(function(t) { t.style.display = 'none'; });
+  document.querySelectorAll('#main-tabs .app-tab').forEach(function(t) { t.style.display = 'none'; });
   var dpTab = document.querySelector('.tab[data-tab="dp"]');
-  if (dpTab) dpTab.style.display = '';
   if (typeof window.sw === 'function') window.sw('dp', dpTab);
   if (typeof window.loadDashboard === 'function') window.loadDashboard();
 };
@@ -1080,6 +1131,8 @@ async function syncDashboardFromGitHub() {
 // ── PUBLIC API ────────────────────────────────────────────────────────────────
 
 window.loadDashboard = function() {
+  // Al entrar al dashboard, ocultar todas las pestañas secundarias
+  document.querySelectorAll('#main-tabs .app-tab').forEach(function(t) { t.style.display = 'none'; });
   var el = document.getElementById('dp-content');
   if (el) renderDashboard(el);
   if (_dashMap) setTimeout(function() { _dashMap.invalidateSize(); }, 150);
