@@ -390,6 +390,7 @@ function renderModal(asset) {
 
     '<div>' + mkLabel('Fuente') + mkSelect('df-source', sourceOpts) + '</div>' +
     '<div>' + mkLabel('URL del anuncio') + mkInput('df-url', 'url', asset.url || '', 'https://...') + '</div>' +
+    '<div>' + mkLabel('Ref. inmobiliaria') + mkInput('df-ref', 'text', asset.ref_code || '', '108701608') + '</div>' +
 
     '<div>' + mkLabel('Ciudad / Municipio') + mkInput('df-city', 'text', asset.city || '', 'Sevilla, Manresa...') + '</div>' +
     '<div>' + mkLabel('Barrio / Zona') + mkInput('df-neighborhood', 'text', asset.neighborhood || '', 'Macarena, Centre...') + '</div>' +
@@ -631,6 +632,7 @@ function readForm(existingId) {
     lat:           nv('df-lat'),
     lng:           nv('df-lng'),
     notes:         v('df-notes'),
+    ref_code:      v('df-ref'),
     foto_portada:  v('df-foto-portada'),
     foto_urls:     (function() { try { return JSON.parse(document.getElementById('df-foto-urls').value || '[]'); } catch(e) { return []; } })()
   };
@@ -900,6 +902,7 @@ function renderAssetDetail(asset) {
           '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
             stageBadge(asset.stage) + ' ' + prioBadge(asset.priority) +
             (asset.city ? '<span style="font-size:11px;color:#888">' + escD(asset.city) + (asset.neighborhood ? ' · ' + escD(asset.neighborhood) : '') + '</span>' : '') +
+            (asset.ref_code ? '<span style="font-size:11px;color:#aaa;font-family:\'Courier New\',monospace">Ref: ' + escD(asset.ref_code) + '</span>' : '') +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -979,9 +982,13 @@ window.openAssetDetail = function(id) {
     t.style.display = (t.getAttribute('data-tab') === 'ip') ? 'none' : '';
   });
 
-  // Poner nombre del asset en la pestaña Ficha
+  // Poner nombre del asset (+ ref si existe) en la pestaña Ficha
   var adpTab = document.querySelector('.tab[data-tab="adp"]');
-  if (adpTab) adpTab.textContent = (asset.title || asset.address || 'Ficha').substring(0, 28);
+  if (adpTab) {
+    var tabLabel = (asset.title || asset.address || 'Ficha').substring(0, 22);
+    if (asset.ref_code) tabLabel += ' · ' + asset.ref_code;
+    adpTab.textContent = tabLabel;
+  }
 
   // Navegar a Ficha
   if (typeof window.sw === 'function') window.sw('adp', adpTab);
