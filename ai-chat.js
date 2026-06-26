@@ -173,19 +173,61 @@ window.readPageForFill = async function(url, onStatus) {
 // ── FILL ASSET FROM TEXT (AI extraction) ──────────────────────────────────────
 
 var FILL_PROMPT =
-  'Eres experto en inmuebles en venta en España. Extrae los datos del anuncio y devuelve SOLO JSON válido, sin texto adicional, sin markdown, sin backticks.\n\n' +
-  'Devuelve exactamente este JSON (usa null si el dato no aparece):\n' +
-  '{"title":null,"city":null,"neighborhood":null,"price":null,"surface":null,"rooms":null,"condition":null,"source":null,"lat":null,"lng":null}\n\n' +
-  'Reglas importantes:\n' +
-  '- title: dirección exacta (ej: "Calle Mayor 12, 3B") o nombre descriptivo del inmueble\n' +
-  '- city: municipio o ciudad (ej: "Sevilla", "Manresa", "San Juan de Aznalfarache")\n' +
-  '- neighborhood: barrio o zona (ej: "Macarena", "Triana", "Centre")\n' +
-  '- price: número entero en euros, sin puntos ni €\n' +
-  '- surface: metros cuadrados construidos, número entero\n' +
-  '- rooms: número de habitaciones, entero\n' +
-  '- condition: "a_reformar" si está para reformar/mal estado | "segunda_mano" si es de segunda mano sin indicar estado | "buen_estado" si está en buen estado | "reformado" si ya está reformado | "obra_nueva" si es obra nueva\n' +
-  '- source: "Idealista" | "Solvia" | "Habitaclia" | "Fotocasa" | "Milanuncios" | "Otra" según el portal del anuncio\n' +
-  '- lat/lng: coordenadas numéricas si aparecen explícitamente en el texto, si no null\n\n' +
+  'Eres un analista inmobiliario especializado en inversión residencial en España.\n\n' +
+  'Extrae los datos del siguiente anuncio inmobiliario. Devuelve SOLO JSON válido, sin texto adicional, sin markdown, sin backticks.\n\n' +
+  'Reglas ESTRICTAS:\n' +
+  '1. NO inventes datos. Solo extrae lo que aparezca explícitamente en el texto.\n' +
+  '2. Si un dato no aparece, usa null (o [] para listas).\n' +
+  '3. Los campos de análisis (description_summary, positive_points, risks_or_unknowns, missing_data) SÍ los puedes inferir a partir de lo que lees.\n\n' +
+  'Devuelve exactamente este JSON:\n' +
+  '{\n' +
+  '  "price": null,\n' +
+  '  "title": null,\n' +
+  '  "address_or_area": null,\n' +
+  '  "municipality": null,\n' +
+  '  "province": null,\n' +
+  '  "neighborhood": null,\n' +
+  '  "built_area_m2": null,\n' +
+  '  "useful_area_m2": null,\n' +
+  '  "bedrooms": null,\n' +
+  '  "bathrooms": null,\n' +
+  '  "floor": null,\n' +
+  '  "has_elevator": null,\n' +
+  '  "condition": null,\n' +
+  '  "source": null,\n' +
+  '  "lat": null,\n' +
+  '  "lng": null,\n' +
+  '  "energy_certificate": {"consumption": null, "emissions": null},\n' +
+  '  "advertiser": null,\n' +
+  '  "listing_reference": null,\n' +
+  '  "last_updated": null,\n' +
+  '  "description_summary": null,\n' +
+  '  "positive_points": [],\n' +
+  '  "risks_or_unknowns": [],\n' +
+  '  "missing_data": []\n' +
+  '}\n\n' +
+  'Definiciones:\n' +
+  '- price: número entero en euros (sin puntos ni €)\n' +
+  '- title: dirección exacta (ej: "Calle Mayor 12, 3B") si aparece, o null\n' +
+  '- address_or_area: dirección o zona/barrio del anuncio\n' +
+  '- municipality: municipio o ciudad (ej: "Sevilla", "L\'Hospitalet de Llobregat")\n' +
+  '- built_area_m2: m² construidos, entero\n' +
+  '- useful_area_m2: m² útiles, entero (si aparece)\n' +
+  '- bedrooms: número de habitaciones, entero\n' +
+  '- bathrooms: número de baños, entero\n' +
+  '- floor: planta (ej: "2", "Bajo", "Ático")\n' +
+  '- has_elevator: true | false | null\n' +
+  '- condition: "a_reformar" si está para reformar/mal estado | "segunda_mano" sin indicar estado | "buen_estado" si buen estado | "reformado" si ya reformado | "obra_nueva" si nueva construcción\n' +
+  '- source: "Idealista" | "Solvia" | "Habitaclia" | "Fotocasa" | "Milanuncios" | "Otra" según el portal\n' +
+  '- lat/lng: coordenadas numéricas solo si aparecen explícitamente\n' +
+  '- energy_certificate: extraer consumo (kWh/m²·año) y emisiones (kgCO₂/m²·año) si aparecen\n' +
+  '- advertiser: nombre de la agencia o particular que anuncia\n' +
+  '- listing_reference: código de referencia del anuncio\n' +
+  '- last_updated: fecha de actualización del anuncio (formato YYYY-MM-DD si posible)\n' +
+  '- description_summary: resumen de 2-3 frases del anuncio en español\n' +
+  '- positive_points: máximo 5 puntos positivos del inmueble\n' +
+  '- risks_or_unknowns: máximo 5 riesgos, dudas o aspectos negativos que detectes\n' +
+  '- missing_data: datos relevantes para un inversor que NO aparecen en el anuncio\n\n' +
   'TEXTO DEL ANUNCIO:\n';
 
 window.analyzeTextForAsset = async function(text, onStatus) {
@@ -205,7 +247,9 @@ window.analyzeTextForAsset = async function(text, onStatus) {
   if (!m) throw new Error('La IA no devolvió JSON válido. Respuesta: ' + result.text.substring(0, 80));
   var data = JSON.parse(m[0]);
 
-  var filled = Object.keys(data).filter(function(k) { return data[k] !== null && data[k] !== undefined; });
+  // Check if any meaningful field was extracted (ignore always-present empty arrays/objects)
+  var coreFields = ['price', 'title', 'address_or_area', 'municipality', 'built_area_m2', 'bedrooms', 'condition'];
+  var filled = coreFields.filter(function(k) { return data[k] !== null && data[k] !== undefined; });
   if (!filled.length) throw new Error('La IA no encontró datos en el texto. El contenido leído puede no ser un anuncio inmobiliario.');
 
   return data;

@@ -338,6 +338,7 @@ function renderModal(asset) {
     '<button id="df-ai-txt-btn" onclick="runAIFill(\'text\')" style="padding:7px 14px;border:none;border-radius:6px;background:#92400e;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">Analizar texto →</button>' +
 
     '<div id="df-ai-status" style="font-size:11px;color:#92400e;margin-top:8px;min-height:16px;line-height:1.4"></div>' +
+    '<div id="df-ai-analysis" style="display:none;margin-top:10px"></div>' +
     '</div>' +
 
     '<div style="' + g2 + '">' +
@@ -406,17 +407,22 @@ window.runAIFill = async function(mode) {
   function setSelect(id, value) {
     var el = document.getElementById(id);
     if (!el || !value) return;
-    var v = String(value);
+    var s = String(value);
     for (var i = 0; i < el.options.length; i++) {
-      if (el.options[i].value === v || el.options[i].text === v) { el.selectedIndex = i; return; }
+      if (el.options[i].value === s || el.options[i].text === s) { el.selectedIndex = i; return; }
     }
   }
+  function fmtNum(n) { return n ? Number(n).toLocaleString('es-ES') : '—'; }
+  function escH(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  var urlBtn  = document.getElementById('df-ai-btn');
-  var txtBtn  = document.getElementById('df-ai-txt-btn');
+  var urlBtn   = document.getElementById('df-ai-btn');
+  var txtBtn   = document.getElementById('df-ai-txt-btn');
   var activeBtn = mode === 'text' ? txtBtn : urlBtn;
-  var originalLabel = activeBtn ? activeBtn.textContent : '';
+  var origLabel = activeBtn ? activeBtn.textContent : '';
   if (activeBtn) { activeBtn.disabled = true; activeBtn.textContent = 'Procesando...'; }
+
+  var analysisEl = document.getElementById('df-ai-analysis');
+  if (analysisEl) { analysisEl.style.display = 'none'; analysisEl.innerHTML = ''; }
 
   try {
     var data;
@@ -428,34 +434,122 @@ window.runAIFill = async function(mode) {
       data = await window.analyzeTextForAsset(text.trim(), setStatus);
     } else {
       if (!url.trim()) { setStatus('Pega primero una URL de anuncio.', '#dc2626'); return; }
-      // Pre-fill URL field immediately
       setField('df-url', url.trim());
       data = await window.fillAssetWithAI(url.trim(), setStatus);
     }
 
-    // Fill form fields
-    if (data.title)        setField('df-title',       data.title);
-    if (data.city)         setField('df-city',         data.city);
-    if (data.neighborhood) setField('df-neighborhood', data.neighborhood);
-    if (data.price)        setField('df-price',        data.price);
-    if (data.surface)      setField('df-surface',      data.surface);
-    if (data.rooms)        setField('df-rooms',        data.rooms);
-    if (data.lat)          setField('df-lat',          data.lat);
-    if (data.lng)          setField('df-lng',          data.lng);
-    if (data.condition)    setSelect('df-condition',   data.condition);
-    if (data.source)       setSelect('df-source',      data.source);
+    // ── PASO 1: Rellenar formulario ───────────────────────────────────────────
+    // Mapeo del nuevo schema rico → campos del formulario
+    var titleVal = data.address_or_area || data.title;
+    var cityVal  = data.municipality || data.city;
+    var m2Val    = data.built_area_m2 || data.surface;
+    var roomsVal = data.bedrooms || data.rooms;
+
+    if (titleVal)          setField('df-title',         titleVal);
+    if (cityVal)           setField('df-city',           cityVal);
+    if (data.neighborhood) setField('df-neighborhood',   data.neighborhood);
+    if (data.price)        setField('df-price',          data.price);
+    if (m2Val)             setField('df-surface',        m2Val);
+    if (roomsVal)          setField('df-rooms',          roomsVal);
+    if (data.lat)          setField('df-lat',            data.lat);
+    if (data.lng)          setField('df-lng',            data.lng);
+    if (data.condition)    setSelect('df-condition',     data.condition);
+    if (data.source)       setSelect('df-source',        data.source);
     if (url && !document.getElementById('df-url').value) setField('df-url', url.trim());
 
-    var filled = ['title','city','neighborhood','price','surface','rooms','condition','source']
-      .filter(function(k) { return data[k] !== null && data[k] !== undefined; });
+    var basicMap = {title: titleVal, ciudad: cityVal, barrio: data.neighborhood,
+                    precio: data.price, m2: m2Val, habitaciones: roomsVal,
+                    estado: data.condition, fuente: data.source};
+    var filled = Object.keys(basicMap).filter(function(k) {
+      var v = basicMap[k]; return v !== null && v !== undefined && String(v).trim() !== '';
+    });
     setStatus('✓ Rellenados ' + filled.length + ' campos: ' + filled.join(', ') + '. Revisa y ajusta.', '#15803d');
+
+    // ── PASO 2: Panel de análisis IA ─────────────────────────────────────────
+    if (!analysisEl) { if (activeBtn) { activeBtn.disabled = false; activeBtn.textContent = origLabel; } return; }
+    var html = '';
+
+    // Cálculos de inversión
+    var priceN = parseFloat(data.price);
+    var m2N    = parseFloat(m2Val);
+    if (priceN && m2N) {
+      var ppm2 = Math.round(priceN / m2N);
+      var buyC = Math.round(priceN * 0.11); // ITP ~8% + notaría + registro + gestoría ~3%
+      var refMap = {a_reformar: 550, segunda_mano: 150, buen_estado: 50, reformado: 0, obra_nueva: 0};
+      var refPm2 = refMap[data.condition] !== undefined ? refMap[data.condition] : 300;
+      var refC  = Math.round(m2N * refPm2);
+      var totalInv = priceN + buyC + refC;
+      html += '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 12px;margin-bottom:8px">' +
+        '<div style="font-size:11px;font-weight:600;color:#15803d;margin-bottom:6px">📊 Análisis rápido de inversión</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:11px;color:#166534">' +
+        '<div>Precio/m²: <strong>' + fmtNum(ppm2) + ' €</strong></div>' +
+        '<div>Gastos compra est. (11%): <strong>' + fmtNum(buyC) + ' €</strong></div>' +
+        '<div>Reforma est. (' + refPm2 + ' €/m²): <strong>' + fmtNum(refC) + ' €</strong></div>' +
+        '<div>Inversión total est.: <strong>' + fmtNum(totalInv) + ' €</strong></div>' +
+        '</div></div>';
+    }
+
+    // Resumen
+    if (data.description_summary) {
+      html += '<div style="font-size:11px;color:#444;line-height:1.5;background:#f9f9f7;border-radius:6px;padding:8px 10px;margin-bottom:8px">' +
+        '<strong>Resumen:</strong> ' + escH(data.description_summary) + '</div>';
+    }
+
+    // Puntos positivos
+    if (data.positive_points && data.positive_points.length) {
+      html += '<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:600;color:#15803d;margin-bottom:2px">✅ Puntos positivos</div>' +
+        '<ul style="margin:0;padding-left:16px;font-size:11px;color:#166534;line-height:1.6">' +
+        data.positive_points.map(function(p) { return '<li>' + escH(p) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    // Riesgos
+    if (data.risks_or_unknowns && data.risks_or_unknowns.length) {
+      html += '<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:600;color:#b91c1c;margin-bottom:2px">⚠️ Riesgos / incógnitas</div>' +
+        '<ul style="margin:0;padding-left:16px;font-size:11px;color:#7f1d1d;line-height:1.6">' +
+        data.risks_or_unknowns.map(function(r) { return '<li>' + escH(r) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    // Datos que faltan
+    if (data.missing_data && data.missing_data.length) {
+      html += '<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:#b45309;margin-bottom:2px">❓ Datos que faltan preguntar</div>' +
+        '<ul style="margin:0;padding-left:16px;font-size:11px;color:#92400e;line-height:1.6">' +
+        data.missing_data.map(function(m) { return '<li>' + escH(m) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    // Ficha técnica extra
+    var extras = [];
+    if (data.floor) extras.push('Planta: ' + escH(data.floor));
+    if (data.bathrooms) extras.push('Baños: ' + data.bathrooms);
+    if (data.has_elevator === true) extras.push('Ascensor: Sí');
+    else if (data.has_elevator === false) extras.push('Ascensor: No');
+    if (data.useful_area_m2) extras.push('Útiles: ' + data.useful_area_m2 + ' m²');
+    if (data.province) extras.push('Provincia: ' + escH(data.province));
+    if (data.energy_certificate && (data.energy_certificate.consumption || data.energy_certificate.emissions)) {
+      var ec = [];
+      if (data.energy_certificate.consumption) ec.push(data.energy_certificate.consumption);
+      if (data.energy_certificate.emissions) ec.push(data.energy_certificate.emissions + ' CO₂');
+      extras.push('Energía: ' + ec.join(' · '));
+    }
+    if (data.advertiser) extras.push('Anunciante: ' + escH(data.advertiser));
+    if (data.listing_reference) extras.push('Ref: ' + escH(data.listing_reference));
+    if (data.last_updated) extras.push('Actualizado: ' + escH(data.last_updated));
+
+    if (extras.length) {
+      html += '<div style="font-size:10px;color:#666;line-height:1.8;border-top:1px solid #e5e5e0;padding-top:6px">' +
+        extras.join(' &nbsp;·&nbsp; ') + '</div>';
+    }
+
+    if (html) {
+      analysisEl.innerHTML = html;
+      analysisEl.style.display = 'block';
+    }
 
   } catch(e) {
     setStatus('✗ ' + e.message, '#dc2626');
     console.error('AI fill error:', e);
   }
 
-  if (activeBtn) { activeBtn.disabled = false; activeBtn.textContent = originalLabel; }
+  if (activeBtn) { activeBtn.disabled = false; activeBtn.textContent = origLabel; }
 };
 
 function v(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
