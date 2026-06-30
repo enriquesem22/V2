@@ -1,0 +1,515 @@
+{
+  "id": "102776653",
+  "lastUpdated": "2026-06-30",
+  "title": "Piso en venta en La Salut",
+  "source": "Idealista",
+  "url": "https://www.idealista.com/inmueble/102776653/",
+  "city": "Badalona",
+  "neighborhood": "La Salut - Lloreda - Sistrells / La Salut",
+  "price": 116370,
+  "surface": 85,
+  "rooms": 3,
+  "condition": "a_reformar",
+  "stage": "analizando",
+  "priority": "B",
+  "contactedAgent": true,
+  "contactDate": null,
+  "visitDate": null,
+  "offerAmount": null,
+  "lat": 41.4423528,
+  "lng": 2.2240194,
+  "notes": "Piso de 85 m2 construidos, 3 habitaciones y 1 bano, 2a planta, en La Salut, Badalona. Precio 116.370 euros, aprox. 1.369 euros/m2. Anunciante profesional Aliseda, referencia VI-000-030-693-360 / ANT00030693360. Estado anunciado: segunda mano/para reformar, orientacion este, construido en 1970 y sin calefaccion. Idealista muestra que el anunciante no ha indicado la ubicacion exacta; coordenadas aproximadas tomadas en el entorno de la estacion/area de La Salut, no del portal exacto. Puntos fuertes: precio de entrada bajo para Badalona, 85 m2, 3 habitaciones, 2a planta y entorno con metro/servicios. Riesgos: confirmar si tiene ascensor, estado real de estructura e instalaciones, ocupacion, cargas, comunidad, derramas, ITE, financiabilidad y si es visitable al ser activo de banco. Analisis preliminar flip: gastos de compra aprox. 13.000-14.000 euros; reforma integral estimada 50.000-65.000 euros; coste total orientativo 180.000-195.000 euros antes de impuestos de beneficio. Salida reformado razonable, si no hay ascensor, aprox. 190.000-210.000 euros segun comparables de La Salut; margen ajustado al precio actual. Recomendacion: interesante solo si se puede visitar y negociar por debajo de 105.000-110.000 euros; pedir nota simple, ocupacion/cargas, comunidad, ITE, ascensor y presupuesto real de reforma antes de ofertar. Idealista aparece como contactado, pero la fecha de contacto no esta verificada.",
+  "createdAt": "2026-06-29",
+  "foto_portada": "",
+  "foto_urls": [],
+  "ref_code": "",
+  "analisis": {
+    "S": {
+      "pc": 116370,
+      "itp": 7,
+      "not": 1.5,
+      "dd": 350,
+      "hon": 0,
+      "fin": true,
+      "ltv": 70,
+      "ti": -6.5,
+      "hip": 25,
+      "_direccion": "Piso en venta en La Salut",
+      "_cp": "M198787",
+      "_habs": 3,
+      "_estado": "para reformar"
+    },
+    "F": {
+      "sup": 85,
+      "rm2": 550,
+      "ct": 15,
+      "ind": 2000,
+      "pl": 8,
+      "pv": 191105,
+      "gv": 4
+    },
+    "B": {
+      "ref": 38250,
+      "ct": 15,
+      "rnt": 485,
+      "vac": 5,
+      "ibi": 300,
+      "com": 420,
+      "seg": 180,
+      "imp": true,
+      "mnt": 1,
+      "ges": 0
+    },
+    "CATS": [
+      {
+        "n": "Vaciado y demolición",
+        "open": true,
+        "items": [
+          {
+            "d": "Levantado de pavimento existente",
+            "u": "m²",
+            "q": 65,
+            "p": 10,
+            "on": true,
+            "ref": "8–14 €/m²"
+          },
+          {
+            "d": "Derribo tabiques (si aplica)",
+            "u": "m²",
+            "q": 15,
+            "p": 20,
+            "on": false,
+            "ref": "15–28 €/m²"
+          },
+          {
+            "d": "Gestión de escombros y contenedor",
+            "u": "ud",
+            "q": 1,
+            "p": 450,
+            "on": true,
+            "ref": "350–600 €"
+          },
+          {
+            "d": "Retirada muebles y enseres",
+            "u": "ud",
+            "q": 1,
+            "p": 200,
+            "on": false,
+            "ref": "150–400 €"
+          }
+        ]
+      },
+      {
+        "n": "Instalación eléctrica",
+        "open": true,
+        "items": [
+          {
+            "d": "Instalación eléctrica completa (~65m²)",
+            "u": "ud",
+            "q": 1,
+            "p": 3200,
+            "on": true,
+            "ref": "2.800–4.500 €"
+          },
+          {
+            "d": "Cuadro eléctrico y protecciones",
+            "u": "ud",
+            "q": 1,
+            "p": 350,
+            "on": true,
+            "ref": "300–500 €"
+          },
+          {
+            "d": "Puntos de luz adicionales",
+            "u": "ud",
+            "q": 4,
+            "p": 80,
+            "on": false,
+            "ref": "60–120 €/ud"
+          },
+          {
+            "d": "Boletín eléctrico",
+            "u": "ud",
+            "q": 1,
+            "p": 150,
+            "on": true,
+            "ref": "120–200 €"
+          }
+        ]
+      },
+      {
+        "n": "Fontanería y saneamiento",
+        "open": true,
+        "items": [
+          {
+            "d": "Renovación fontanería completa",
+            "u": "ud",
+            "q": 1,
+            "p": 2500,
+            "on": true,
+            "ref": "2.000–3.500 €"
+          },
+          {
+            "d": "Sustitución bajante",
+            "u": "ud",
+            "q": 1,
+            "p": 550,
+            "on": false,
+            "ref": "350–900 €"
+          },
+          {
+            "d": "Bañera por plato de ducha",
+            "u": "ud",
+            "q": 1,
+            "p": 550,
+            "on": true,
+            "ref": "400–800 €"
+          }
+        ]
+      },
+      {
+        "n": "Suelos",
+        "open": true,
+        "items": [
+          {
+            "d": "Porcelánico o gres (mat.+inst.)",
+            "u": "m²",
+            "q": 65,
+            "p": 38,
+            "on": true,
+            "ref": "28–55 €/m²"
+          },
+          {
+            "d": "Rodapié",
+            "u": "ml",
+            "q": 55,
+            "p": 8,
+            "on": true,
+            "ref": "6–12 €/ml"
+          },
+          {
+            "d": "Pulido terrazo existente",
+            "u": "m²",
+            "q": 65,
+            "p": 15,
+            "on": false,
+            "ref": "12–20 €/m²"
+          },
+          {
+            "d": "Parquet laminado (alternativa)",
+            "u": "m²",
+            "q": 65,
+            "p": 25,
+            "on": false,
+            "ref": "18–35 €/m²"
+          }
+        ]
+      },
+      {
+        "n": "Paredes y techos",
+        "open": true,
+        "items": [
+          {
+            "d": "Picado de gotelé + alisado",
+            "u": "m²",
+            "q": 180,
+            "p": 9,
+            "on": true,
+            "ref": "7–13 €/m²"
+          },
+          {
+            "d": "Reparación humedades puntuales",
+            "u": "ud",
+            "q": 1,
+            "p": 250,
+            "on": false,
+            "ref": "150–500 €"
+          },
+          {
+            "d": "Falso techo pladur",
+            "u": "m²",
+            "q": 30,
+            "p": 32,
+            "on": false,
+            "ref": "25–45 €/m²"
+          }
+        ]
+      },
+      {
+        "n": "Baño/s",
+        "open": true,
+        "items": [
+          {
+            "d": "Reforma integral baño (alicatado+sanitarios)",
+            "u": "ud",
+            "q": 1,
+            "p": 3800,
+            "on": true,
+            "ref": "3.000–5.500 €"
+          },
+          {
+            "d": "Baño adicional (si hay 2)",
+            "u": "ud",
+            "q": 0,
+            "p": 3200,
+            "on": false,
+            "ref": "2.500–4.500 €"
+          },
+          {
+            "d": "Mampara de ducha",
+            "u": "ud",
+            "q": 1,
+            "p": 400,
+            "on": true,
+            "ref": "280–650 €"
+          },
+          {
+            "d": "Mueble de baño con lavabo",
+            "u": "ud",
+            "q": 1,
+            "p": 350,
+            "on": true,
+            "ref": "250–600 €"
+          }
+        ]
+      },
+      {
+        "n": "Cocina",
+        "open": true,
+        "items": [
+          {
+            "d": "Muebles cocina (~3m lineales)",
+            "u": "ud",
+            "q": 1,
+            "p": 2200,
+            "on": true,
+            "ref": "1.500–3.500 €"
+          },
+          {
+            "d": "Encimera (silestone o compacto)",
+            "u": "ud",
+            "q": 1,
+            "p": 450,
+            "on": true,
+            "ref": "300–800 €"
+          },
+          {
+            "d": "Fregadero + grifo monomando",
+            "u": "ud",
+            "q": 1,
+            "p": 220,
+            "on": true,
+            "ref": "150–350 €"
+          },
+          {
+            "d": "Electrodomésticos (horno+placa+campana)",
+            "u": "ud",
+            "q": 1,
+            "p": 900,
+            "on": true,
+            "ref": "600–1.500 €"
+          },
+          {
+            "d": "Alicatado frente cocina",
+            "u": "m²",
+            "q": 8,
+            "p": 35,
+            "on": true,
+            "ref": "25–50 €/m²"
+          },
+          {
+            "d": "Frigorífico (BTR)",
+            "u": "ud",
+            "q": 1,
+            "p": 500,
+            "on": false,
+            "ref": "350–900 €"
+          }
+        ]
+      },
+      {
+        "n": "Carpintería interior",
+        "open": false,
+        "items": [
+          {
+            "d": "Puertas de paso lacadas (mat.+inst.)",
+            "u": "ud",
+            "q": 5,
+            "p": 320,
+            "on": true,
+            "ref": "250–420 €/ud"
+          },
+          {
+            "d": "Puerta de entrada (blindada)",
+            "u": "ud",
+            "q": 1,
+            "p": 1100,
+            "on": true,
+            "ref": "800–1.600 €"
+          },
+          {
+            "d": "Armario empotrado (~60cm/módulo)",
+            "u": "ud",
+            "q": 4,
+            "p": 480,
+            "on": false,
+            "ref": "350–700 €/ud"
+          }
+        ]
+      },
+      {
+        "n": "Ventanas y exterior",
+        "open": false,
+        "items": [
+          {
+            "d": "Ventana PVC doble acristalamiento",
+            "u": "ud",
+            "q": 6,
+            "p": 480,
+            "on": false,
+            "ref": "320–650 €/ud"
+          },
+          {
+            "d": "Persiana (sustitución motorizada)",
+            "u": "ud",
+            "q": 4,
+            "p": 220,
+            "on": false,
+            "ref": "150–320 €/ud"
+          }
+        ]
+      },
+      {
+        "n": "Climatización",
+        "open": false,
+        "items": [
+          {
+            "d": "Split 1×1 inverter instalado",
+            "u": "ud",
+            "q": 2,
+            "p": 950,
+            "on": false,
+            "ref": "750–1.300 €/ud"
+          },
+          {
+            "d": "Preinstalación (sin unidad)",
+            "u": "ud",
+            "q": 2,
+            "p": 200,
+            "on": false,
+            "ref": "150–280 €/ud"
+          }
+        ]
+      },
+      {
+        "n": "Acabados finales",
+        "open": true,
+        "items": [
+          {
+            "d": "Pintura interior completa (2 manos)",
+            "u": "m²",
+            "q": 200,
+            "p": 7,
+            "on": true,
+            "ref": "5–10 €/m²"
+          },
+          {
+            "d": "Limpieza de obra final",
+            "u": "ud",
+            "q": 1,
+            "p": 280,
+            "on": true,
+            "ref": "200–400 €"
+          },
+          {
+            "d": "Pequeños remates y ajustes",
+            "u": "ud",
+            "q": 1,
+            "p": 300,
+            "on": true,
+            "ref": "200–500 €"
+          }
+        ]
+      },
+      {
+        "n": "Gestión y licencias",
+        "open": false,
+        "items": [
+          {
+            "d": "Aparejador / arquitecto técnico",
+            "u": "ud",
+            "q": 1,
+            "p": 1200,
+            "on": true,
+            "ref": "800–2.000 €"
+          },
+          {
+            "d": "Licencia de obras menor",
+            "u": "ud",
+            "q": 1,
+            "p": 350,
+            "on": true,
+            "ref": "200–600 €"
+          },
+          {
+            "d": "Certificado energético",
+            "u": "ud",
+            "q": 1,
+            "p": 180,
+            "on": true,
+            "ref": "150–250 €"
+          }
+        ]
+      },
+      {
+        "n": "Home staging (flip)",
+        "open": false,
+        "items": [
+          {
+            "d": "Home staging básico",
+            "u": "ud",
+            "q": 1,
+            "p": 1200,
+            "on": false,
+            "ref": "800–2.500 €"
+          },
+          {
+            "d": "Fotografía profesional",
+            "u": "ud",
+            "q": 1,
+            "p": 200,
+            "on": false,
+            "ref": "150–350 €"
+          },
+          {
+            "d": "Tour virtual 3D",
+            "u": "ud",
+            "q": 1,
+            "p": 350,
+            "on": false,
+            "ref": "250–600 €"
+          }
+        ]
+      }
+    ],
+    "presupuesto": 27390,
+    "resultado": {
+      "flip": {
+        "rc": 35.78,
+        "mn": 26881,
+        "ra": 58.22,
+        "tot": 156580,
+        "cr": 27390
+      },
+      "btr": {
+        "rn": 2.03,
+        "rb": 3.68,
+        "coc": 4.18,
+        "bn": 3203,
+        "cf": 3203,
+        "tot": 158110
+      }
+    },
+    "savedAt": "2026-06-30T19:10:53.876Z"
+  }
+}
