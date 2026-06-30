@@ -4,7 +4,7 @@
 (function(){
   'use strict';
 
-  window.RETURN_FICHA_ANALISIS_VERSION = '2.42';
+  window.RETURN_FICHA_ANALISIS_VERSION = '2.43';
 
   // ── 0) Fuente de verdad única: si el activo tiene análisis guardado, todas las vistas
   //    (tabla del dashboard, tarjeta de la ficha, etc.) usan ESOS números, no la estimación. ──
@@ -109,8 +109,9 @@
     });
   };
 
-  // ── 2) Inyectar la tarjeta con el botón de guardar (sobrevive al rewrite de los otros patches) ──
+  // ── 2) Tarjeta de resumen del análisis guardado (solo lectura; se edita con el modo edición) ──
   function injectSaveCard(asset){
+    if (window._fichaEdit && window._fichaEdit.on) return; // en modo edición no se inyecta
     var root = document.getElementById('adp-content');
     if (!root) return;
 
@@ -160,12 +161,10 @@
         '</div>' +
         (pres > 0 ? '<div style="font-size:11px;color:#666;margin-bottom:10px">Presupuesto de reforma guardado: <b>' + ef(pres) + '</b></div>' : '');
     } else {
-      inner += '<div style="font-size:12px;color:#666;line-height:1.5;margin-bottom:10px">Aún no has guardado el análisis en esta ficha. Ajusta los datos en la pestaña <b>Inversión</b> y pulsa el botón para guardarlos aquí de forma permanente.</div>';
+      inner += '<div style="font-size:12px;color:#666;line-height:1.5;margin-bottom:10px">Aún no has guardado el análisis en esta ficha. Pulsa <b>«Editar ficha»</b> arriba para entrar en modo edición, ajusta los datos en las pestañas y guarda al salir.</div>';
     }
 
-    inner += '<button id="ficha-analisis-save-btn" style="width:100%;padding:10px;border:none;border-radius:8px;background:#1a1a1a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">' +
-      (hasSaved ? '↓ Actualizar análisis guardado' : '↓ Guardar análisis en esta ficha') + '</button>' +
-      '<div id="ficha-analisis-status" style="font-size:11px;color:#16a34a;margin-top:6px;min-height:14px;text-align:center"></div>';
+    inner += '<div style="font-size:11px;color:#888;line-height:1.5;margin-top:2px">Para modificar precio, reforma, financiación o cualquier dato usa <b>«Editar ficha»</b> (arriba). Todo se guarda junto al salir del modo edición.</div>';
 
     box.innerHTML = inner;
 
@@ -175,30 +174,174 @@
     } else {
       root.appendChild(box);
     }
-
-    var btn = document.getElementById('ficha-analisis-save-btn');
-    if (btn) btn.addEventListener('click', async function(){
-      var st = document.getElementById('ficha-analisis-status');
-      btn.disabled = true; var lbl = btn.textContent; btn.textContent = 'Guardando...';
-      if (st) { st.style.color = '#d97706'; st.textContent = 'Guardando en GitHub...'; }
-      try {
-        if (typeof window.saveAnalysisToAsset === 'function') {
-          await window.saveAnalysisToAsset(asset.id);
-        }
-      } catch(e) {
-        if (st) { st.style.color = '#dc2626'; st.textContent = 'Error: ' + e.message; }
-        btn.disabled = false; btn.textContent = lbl;
-      }
-    });
   }
 
   // ── 3) Reinyectar la tarjeta cada vez que se renderiza la ficha ──
   var oldRenderAssetDetail = window.renderAssetDetail;
   window.renderAssetDetail = function(asset){
+    if (window._fichaEdit && window._fichaEdit.on) return; // no re-render en modo edición
     var r = (typeof oldRenderAssetDetail === 'function') ? oldRenderAssetDetail.apply(this, arguments) : undefined;
     // 220ms: después del rewrite de investment-card-consistency-patch (que corre a 0 y 150ms)
     setTimeout(function(){ try { injectSaveCard(asset); } catch(e) {} }, 220);
     return r;
   };
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── 4) MODO EDICIÓN GLOBAL de la ficha ──
+  //    Un único botón "Editar ficha" entra en modo edición. Se pueden cambiar
+  //    datos en todas las pestañas (inmueble, Mercado, Presupuesto, Inversión)
+  //    y todo se recalcula en vivo, pero NO se guarda en la ficha hasta pulsar
+  //    "Guardar y salir". "Cancelar" descarta los cambios.
+  // ══════════════════════════════════════════════════════════════════
+  window._fichaEdit = window._fichaEdit || { on:false, asset:null };
+
+  function todayISOf(){ return (typeof window.todayISO === 'function') ? window.todayISO() : new Date().toISOString().slice(0,10); }
+
+  function reRenderCalculators(){
+    ['rSI','rSR','rFI','rFR','rBI','rBR','rPresupuesto'].forEach(function(fn){
+      if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
+    });
+  }
+
+  function buildEditBar(){
+    if (document.getElementById('ficha-edit-bar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'ficha-edit-bar';
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9700;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;box-shadow:0 -4px 16px rgba(0,0,0,.25);font-family:system-ui,-apple-system,sans-serif';
+    bar.innerHTML =
+      '<span style="font-size:12px;line-height:1.4">✏️ <b>Modo edición</b> — cambia datos en cualquier pestaña; se recalculan en vivo. Nada se guarda en la ficha hasta «Guardar y salir».</span>' +
+      '<span style="display:flex;gap:8px;flex-shrink:0">' +
+        '<button id="ficha-edit-cancel" style="padding:8px 14px;border:1px solid #666;border-radius:7px;background:transparent;color:#fff;font-size:12px;cursor:pointer;font-family:inherit">Cancelar</button>' +
+        '<button id="ficha-edit-save" style="padding:8px 16px;border:none;border-radius:7px;background:#16a34a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">Guardar y salir</button>' +
+      '</span>';
+    document.body.appendChild(bar);
+    document.getElementById('ficha-edit-cancel').addEventListener('click', cancelFichaEdit);
+    document.getElementById('ficha-edit-save').addEventListener('click', saveFichaEdit);
+  }
+  function removeEditBar(){ var b = document.getElementById('ficha-edit-bar'); if (b) b.remove(); }
+
+  function renderFichaEditForm(asset){
+    var el = document.getElementById('adp-content');
+    if (!el) return;
+    var fields = (typeof window.renderFormFields === 'function') ? window.renderFormFields(asset) : '<div style="color:#aaa;font-size:12px">Formulario no disponible.</div>';
+    el.innerHTML =
+      '<div style="max-width:720px;margin:0 auto;padding:8px 0 90px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
+          '<div style="font-size:15px;font-weight:600;color:#1a1a1a">Editando — ' + ((typeof window.escD === 'function') ? window.escD(asset.title || 'activo') : (asset.title || 'activo')) + '</div>' +
+        '</div>' +
+        '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#92400e;line-height:1.5">' +
+          'Aquí editas los <b>datos del inmueble y el seguimiento</b>. Para el análisis financiero usa las pestañas <b>Mercado</b>, <b>Presupuesto</b> e <b>Inversión</b> (se recalculan en vivo). Al terminar pulsa <b>Guardar y salir</b> abajo: se guarda todo junto en la ficha.' +
+        '</div>' +
+        fields +
+      '</div>';
+
+    // Enlace en vivo: cambiar precio/superficie en el formulario actualiza los cálculos del resto de pestañas
+    var pEl = document.getElementById('df-price');
+    if (pEl) pEl.addEventListener('input', function(){
+      var v = parseFloat(this.value);
+      if (window.S && isFinite(v)) { window.S.pc = Math.round(v); reRenderCalculators(); }
+    });
+    var sEl = document.getElementById('df-surface');
+    if (sEl) sEl.addEventListener('input', function(){
+      var v = parseFloat(this.value);
+      if (window.F && isFinite(v)) { window.F.sup = v; reRenderCalculators(); }
+    });
+  }
+
+  function enterFichaEdit(asset){
+    if (!asset) return;
+    window._fichaEdit = { on:true, asset:asset };
+    // Asegurar que los calculadores tienen los datos del activo (restaura análisis guardado si existe)
+    if (typeof window.populateCalculatorsFromAsset === 'function') {
+      try { window.populateCalculatorsFromAsset(asset); } catch(e) {}
+    }
+    // Ir a la pestaña Ficha y mostrar el formulario
+    if (typeof window.sw === 'function') {
+      var t = document.querySelector('.tab[data-tab="adp"]');
+      try { window.sw('adp', t); } catch(e) {}
+    }
+    renderFichaEditForm(asset);
+    buildEditBar();
+  }
+  window.enterFichaEdit = enterFichaEdit;
+
+  async function saveFichaEdit(){
+    var stt = window._fichaEdit;
+    if (!stt || !stt.on) return;
+    var asset = stt.asset;
+    var saveBtn = document.getElementById('ficha-edit-save');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Guardando...'; }
+
+    // 1) Datos del inmueble/CRM desde el formulario (si está presente)
+    var base = {};
+    if (typeof window.readForm === 'function' && document.getElementById('df-title')) {
+      try { base = window.readForm(asset.id); } catch(e) { base = {}; }
+    }
+    // Sincronizar precio/superficie del formulario hacia los calculadores antes de calcular
+    if (base.price != null && window.S) window.S.pc = Math.round(base.price);
+    if (base.surface != null && window.F) window.F.sup = base.surface;
+
+    // 2) Análisis desde los calculadores en vivo
+    var S = Object.assign({}, window.S || {});
+    var F = Object.assign({}, window.F || {});
+    var B = Object.assign({}, window.B || {});
+    var CATS = window.CATS ? window.CATS.map(function(c){ return { n:c.n, open:c.open, items:(c.items||[]).map(function(i){ return { d:i.d, u:i.u, q:i.q, p:i.p, on:i.on, ref:i.ref||'' }; }) }; }) : [];
+    var presupuesto = window._presupuestoTotal || 0;
+    var resF = { rc:0, mn:0, ra:0, tot:0, cr:0 };
+    var resB = { rn:0, rb:0, coc:0, bn:0, cf:0, tot:0 };
+    try { var r1 = window.cF(S, F); resF = { rc:+(r1.rc||0).toFixed(2), mn:Math.round(r1.mn||0), ra:+(r1.ra||0).toFixed(2), tot:Math.round(r1.tot||0), cr:Math.round(r1.cr||0) }; } catch(e) {}
+    try { var r2 = window.cB(S, B); resB = { rn:+(r2.rn||0).toFixed(2), rb:+(r2.rb||0).toFixed(2), coc:+(r2.coc||0).toFixed(2), bn:Math.round(r2.bn||0), cf:Math.round(r2.cf||0), tot:Math.round(r2.tot||0) }; } catch(e) {}
+
+    // 3) Fusionar en el activo
+    var merged = Object.assign({}, asset, base);
+    merged.id = asset.id;
+    merged.createdAt = asset.createdAt || todayISOf();
+    merged.lastUpdated = todayISOf();
+    if (!merged.foto_portada && asset.foto_portada) merged.foto_portada = asset.foto_portada;
+    if (S.pc) merged.price = Math.round(S.pc);
+    if (F.sup) merged.surface = F.sup;
+    merged.analisis = { S:S, F:F, B:B, CATS:CATS, presupuesto:presupuesto, resultado:{ flip:resF, btr:resB }, savedAt:new Date().toISOString() };
+
+    // 4) Persistir una sola vez (memoria + GitHub)
+    try {
+      if (typeof window.getDashboardAssets === 'function' && typeof window.saveDashboardAssets === 'function') {
+        window.saveDashboardAssets(window.getDashboardAssets().map(function(a){ return a.id === asset.id ? merged : a; }));
+      }
+      if (typeof window.githubSaveDashboardAsset === 'function') {
+        var res = await window.githubSaveDashboardAsset(merged);
+        if (res && res.ok === false) throw new Error(res.reason || 'no se pudo guardar');
+        if (res && res.asset) merged = res.asset;
+      }
+    } catch(e) {
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Guardar y salir'; }
+      if (typeof window.showDashToast === 'function') window.showDashToast('Error al guardar: ' + e.message, false);
+      return;
+    }
+
+    // 5) Salir del modo edición y mostrar la ficha actualizada
+    window._fichaEdit = { on:false, asset:null };
+    removeEditBar();
+    var adpTab = document.querySelector('.tab[data-tab="adp"]');
+    if (adpTab) { var tl = (merged.title || merged.address || 'Ficha').substring(0,22); if (merged.ref_code) tl += ' · ' + merged.ref_code; adpTab.textContent = tl; }
+    if (typeof window.renderAssetDetail === 'function') window.renderAssetDetail(merged);
+    if (typeof window.showDashToast === 'function') window.showDashToast('Ficha guardada ✓', true);
+  }
+
+  function cancelFichaEdit(){
+    var stt = window._fichaEdit;
+    if (!stt || !stt.on) return;
+    var asset = stt.asset;
+    window._fichaEdit = { on:false, asset:null };
+    removeEditBar();
+    // Revertir los calculadores al estado guardado del activo
+    if (typeof window.populateCalculatorsFromAsset === 'function') {
+      try { window.populateCalculatorsFromAsset(asset); } catch(e) {}
+    }
+    if (typeof window.renderAssetDetail === 'function') window.renderAssetDetail(asset);
+  }
+
+  // Redirigir TODOS los puntos de edición (header "Editar ficha", edición desde mapa/dashboard)
+  // al modo edición global unificado.
+  window.renderAssetEditInline = function(asset){ enterFichaEdit(asset); };
 
 })();
