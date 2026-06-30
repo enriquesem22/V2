@@ -264,7 +264,7 @@ function sc2(v){return v>=20?'sp':v>=10?'sw':v>=0?'':'sn';}
 // § 7 · EVENTOS GLOBALES  —  us · uf · ub · sw · ts
 // ═══════════════════════════════════════════════════════
 window.us=(k,v)=>{S[k]=v;rSR();rFR();rBR();};
-window.uf=(k,v)=>{F[k]=v;if(k==='sup')rPreciosMercado();rFI();rFR();};
+window.uf=(k,v)=>{F[k]=v;if(k==='sup')rPreciosMercado();rFR();};
 window.ub=(k,v)=>{B[k]=v;rBR();};
 window.tsh=(k)=>{S[k]=!S[k];rSI();rSR();rFR();rBR();};
 window.tb2=(k)=>{B[k]=!B[k];rBI();rBR();};
