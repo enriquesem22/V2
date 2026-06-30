@@ -1,4 +1,4 @@
-const CACHE_NAME = 'return-app-v53';
+const CACHE_NAME = 'return-app-v54';
 
 const LOCAL_ASSETS = [
   '/manifest.json',

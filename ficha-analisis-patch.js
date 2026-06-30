@@ -4,7 +4,29 @@
 (function(){
   'use strict';
 
-  window.RETURN_FICHA_ANALISIS_VERSION = '2.44';
+  window.RETURN_FICHA_ANALISIS_VERSION = '2.45';
+
+  // ── Estilos de coherencia visual para todas las pestañas de la ficha ──
+  (function injectCoherenceStyles(){
+    if (document.getElementById('ficha-coherence-styles')) return;
+    var st = document.createElement('style');
+    st.id = 'ficha-coherence-styles';
+    st.textContent = [
+      '/* Mismo ancho y centrado en todas las pestañas de la ficha */',
+      '#adp-content > div, #mp > .g2, #pp > #presupuesto, #fp > div, #bp > div {',
+      '  max-width: 1000px !important; margin-left: auto !important; margin-right: auto !important;',
+      '}',
+      '/* Tarjetas con el mismo radio en todas las pestañas */',
+      '#mp .sec, #pp .sec, #fp .sec, #bp .sec,',
+      '#mp .mkt-card, #pp .cat-block, #pp .pb-total-card,',
+      '#mp .sum-card, #fp .sum-card, #bp .sum-card,',
+      '#mp .verdict, #fp .verdict, #bp .verdict,',
+      '#mp .note-card, #fp .refbox, #bp .refbox { border-radius: 12px !important; }',
+      '/* Espacio inferior cuando la barra de edición está fija abajo */',
+      'body.ficha-editing .panel { padding-bottom: 88px; }'
+    ].join('\n');
+    (document.head || document.documentElement).appendChild(st);
+  })();
 
   // ── 0) Fuente de verdad única: si el activo tiene análisis guardado, todas las vistas
   //    (tabla del dashboard, tarjeta de la ficha, etc.) usan ESOS números, no la estimación. ──
@@ -229,7 +251,7 @@
     if (!el) return;
     var fields = (typeof window.renderFormFields === 'function') ? window.renderFormFields(asset) : '<div style="color:#aaa;font-size:12px">Formulario no disponible.</div>';
     el.innerHTML =
-      '<div style="max-width:720px;margin:0 auto;padding:8px 0 90px">' +
+      '<div style="max-width:1000px;margin:0 auto;padding:8px 0 90px">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">' +
           '<div style="font-size:15px;font-weight:600;color:#1a1a1a">Editando — ' + ((typeof window.escD === 'function') ? window.escD(asset.title || 'activo') : (asset.title || 'activo')) + '</div>' +
         '</div>' +
@@ -264,6 +286,7 @@
       var t = document.querySelector('.tab[data-tab="adp"]');
       try { window.sw('adp', t); } catch(e) {}
     }
+    document.body.classList.add('ficha-editing');
     renderFichaEditForm(asset);
     buildEditBar();
     updateEditTabButton();
@@ -326,6 +349,7 @@
     // 5) Salir del modo edición y mostrar la ficha actualizada
     window._fichaEdit = { on:false, asset:null };
     window._currentFichaAsset = merged;
+    document.body.classList.remove('ficha-editing');
     removeEditBar();
     updateEditTabButton();
     var adpTab = document.querySelector('.tab[data-tab="adp"]');
@@ -339,6 +363,7 @@
     if (!stt || !stt.on) return;
     var asset = stt.asset;
     window._fichaEdit = { on:false, asset:null };
+    document.body.classList.remove('ficha-editing');
     removeEditBar();
     updateEditTabButton();
     // Revertir los calculadores al estado guardado del activo
