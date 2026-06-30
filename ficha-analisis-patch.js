@@ -4,7 +4,24 @@
 (function(){
   'use strict';
 
-  window.RETURN_FICHA_ANALISIS_VERSION = '2.39';
+  window.RETURN_FICHA_ANALISIS_VERSION = '2.40';
+
+  // ── 0) Fuente de verdad única: si el activo tiene análisis guardado, todas las vistas
+  //    (tabla del dashboard, tarjeta de la ficha, etc.) usan ESOS números, no la estimación. ──
+  var oldInvestmentFromAsset = window.investmentFromAsset;
+  window.investmentFromAsset = function(asset){
+    if (asset && asset.analisis && asset.analisis.resultado) {
+      var an = asset.analisis;
+      return {
+        s: an.S || {},
+        f: an.F || {},
+        b: an.B || {},
+        flip: an.resultado.flip || null,
+        btr: an.resultado.btr || null
+      };
+    }
+    return (typeof oldInvestmentFromAsset === 'function') ? oldInvestmentFromAsset(asset) : null;
+  };
 
   // ── 1) Al poblar los calculadores desde un activo, si tiene análisis guardado, restaurarlo ──
   var oldPopulate = window.populateCalculatorsFromAsset;
