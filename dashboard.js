@@ -946,17 +946,54 @@ function renderAssetDetail(asset) {
     row('Fecha visita', asset.visitDate, '#8b5cf6') +
     row('Importe oferta', asset.offerAmount ? moneyD(asset.offerAmount) : null, '#ef4444');
 
-  // ── Análisis de inversión: enlace a las pestañas auto-completadas (única fuente del cálculo) ──
+  // ── Análisis de inversión guardado ──────────────────────────────────────────
   var goTab = function(tab, label, accent) {
     return '<button onclick="(function(){var t=document.querySelector(\'.tab[data-tab=' + tab + ']\');if(t&&typeof sw===\'function\')sw(\'' + tab + '\',t);})()" ' +
       'style="flex:1;padding:10px 14px;border:1px solid ' + accent + ';border-radius:8px;background:#fff;color:' + accent + ';cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">' + label + ' →</button>';
   };
-  var invBody =
-    '<div style="font-size:12px;color:#666;line-height:1.6;margin-bottom:12px">El precio, superficie y estado de este activo se han cargado automáticamente en las pestañas de análisis. Ábrelas para ver y ajustar el cálculo completo.</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-      goTab('fp', 'Análisis Flip', '#ba7517') +
-      goTab('bp', 'Buy to Rent', '#16a34a') +
-    '</div>';
+
+  var invBody = '';
+  if (asset.analisis && asset.analisis.resultado) {
+    var resF = asset.analisis.resultado.flip || {};
+    var resB = asset.analisis.resultado.btr || {};
+    var pres = asset.analisis.presupuesto || 0;
+    var tagF = (resF.rc||0) >= 20 ? '#16a34a' : (resF.rc||0) >= 10 ? '#d97706' : '#dc2626';
+    var tagB = (resB.rn||0) >= 7  ? '#16a34a' : (resB.rn||0) >= 5  ? '#d97706' : '#dc2626';
+    var savedAt = asset.analisis.savedAt ? new Date(asset.analisis.savedAt).toLocaleDateString('es-ES') : '';
+    invBody +=
+      '<div style="font-size:10px;color:#aaa;margin-bottom:10px">Guardado' + (savedAt ? ' el ' + savedAt : '') + '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">' +
+        '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px">' +
+          '<div style="font-size:10px;color:#92400e;font-weight:600;margin-bottom:4px">FLIP</div>' +
+          '<div style="font-size:20px;font-weight:700;color:' + tagF + ';font-family:\'Courier New\',monospace">' + (isFinite(resF.rc) ? resF.rc.toFixed(1) + '%' : '—') + '</div>' +
+          '<div style="font-size:10px;color:#888;margin-top:2px">ROI &nbsp;·&nbsp; ' + moneyD(resF.mn) + ' margen</div>' +
+        '</div>' +
+        '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px">' +
+          '<div style="font-size:10px;color:#15803d;font-weight:600;margin-bottom:4px">BTR</div>' +
+          '<div style="font-size:20px;font-weight:700;color:' + tagB + ';font-family:\'Courier New\',monospace">' + (isFinite(resB.rn) ? resB.rn.toFixed(1) + '%' : '—') + '</div>' +
+          '<div style="font-size:10px;color:#888;margin-top:2px">Yield neta &nbsp;·&nbsp; ' + moneyD(resB.bn) + '/año</div>' +
+        '</div>' +
+      '</div>' +
+      row('Inversión total (flip)', moneyD(resF.tot)) +
+      row('Capital requerido', moneyD(resF.cr)) +
+      row('Rent. anualizada flip', isFinite(resF.ra) ? resF.ra.toFixed(1) + '%' : '—') +
+      row('Cash on cash BTR', isFinite(resB.coc) ? resB.coc.toFixed(1) + '%' : '—') +
+      row('Cash flow anual BTR', moneyD(resB.cf)) +
+      (pres > 0 ? row('Presupuesto reforma', moneyD(pres)) : '') +
+      '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">' +
+        goTab('fp', 'Editar Flip', '#ba7517') +
+        goTab('bp', 'Editar BTR', '#16a34a') +
+      '</div>' +
+      '<button data-action="save-analysis" data-id="' + asset.id + '" style="width:100%;margin-top:8px;padding:9px;border:none;border-radius:8px;background:#1a1a1a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">↓ Actualizar análisis guardado</button>';
+  } else {
+    invBody =
+      '<div style="font-size:12px;color:#666;line-height:1.6;margin-bottom:12px">Sin análisis guardado. Abre las pestañas Flip y BTR, introduce los datos y pulsa el botón para guardar el análisis en esta ficha.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">' +
+        goTab('fp', 'Análisis Flip', '#ba7517') +
+        goTab('bp', 'Buy to Rent', '#16a34a') +
+      '</div>' +
+      '<button data-action="save-analysis" data-id="' + asset.id + '" style="width:100%;padding:9px;border:none;border-radius:8px;background:#1a1a1a;color:#fff;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500">↓ Guardar análisis en esta ficha</button>';
+  }
 
   // ── Notas ──
   var notasBody = asset.notes
@@ -996,11 +1033,49 @@ function renderAssetDetail(asset) {
         card('Datos del inmueble', basicBody) +
         card('Localización', locBody) +
         card('Notas', notasBody) +
+        (asset.analisis && asset.analisis.CATS && asset.analisis.CATS.length ? card('Presupuesto de reforma', (function() {
+          var cats = asset.analisis.CATS;
+          var totalPres = asset.analisis.presupuesto || 0;
+          var html = '';
+          cats.forEach(function(cat) {
+            var activeItems = (cat.items || []).filter(function(i) { return i.on; });
+            if (!activeItems.length) return;
+            var catTotal = activeItems.reduce(function(s, i) { return s + (+i.q||0) * (+i.p||0); }, 0);
+            html += '<div style="padding:5px 0;border-bottom:1px solid #f5f5f0">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                '<span style="font-size:11px;font-weight:600;color:#555">' + escD(cat.n) + '</span>' +
+                '<span style="font-size:11px;font-family:\'Courier New\',monospace;color:#ba7517">' + moneyD(catTotal) + '</span>' +
+              '</div>' +
+              '<div style="font-size:10px;color:#aaa;margin-top:2px">' + activeItems.length + ' partida' + (activeItems.length !== 1 ? 's' : '') + '</div>' +
+            '</div>';
+          });
+          if (totalPres > 0) {
+            html += '<div style="display:flex;justify-content:space-between;padding-top:8px;margin-top:4px">' +
+              '<span style="font-size:12px;font-weight:600;color:#1a1a1a">Total presupuesto</span>' +
+              '<span style="font-size:14px;font-weight:700;font-family:\'Courier New\',monospace;color:#1a1a1a">' + moneyD(totalPres) + '</span>' +
+            '</div>';
+          }
+          return html || '<div style="font-size:11px;color:#aaa">Sin partidas activas</div>';
+        })(), '#ba7517') : '') +
       '</div>' +
 
       '<div>' +
         card('Pipeline CRM', crmBody) +
-        card('Análisis de inversión', invBody, '#ba7517') +
+        card(asset.analisis ? 'Análisis de inversión guardado' : 'Análisis de inversión', invBody, '#ba7517') +
+        (asset.analisis && asset.analisis.S ? card('Parámetros de compra guardados', (function() {
+          var S = asset.analisis.S, F = asset.analisis.F || {}, B = asset.analisis.B || {};
+          return row('Precio compra', moneyD(S.pc)) +
+            row('ITP', S.itp ? S.itp + '%' : null) +
+            row('Notaría / registro', S.not ? S.not + '%' : null) +
+            row('Honorarios agencia', S.hon ? S.hon + '%' : null) +
+            row('Financiación', S.fin ? 'Sí · LTV ' + S.ltv + '% · ' + S.ti + '% · ' + S.hip + ' años' : 'No') +
+            (F.pv ? row('Precio venta estimado (flip)', moneyD(F.pv)) : '') +
+            (F.pl ? row('Plazo flip', F.pl + ' meses') : '') +
+            (B.rnt ? row('Alquiler mensual (BTR)', moneyD(B.rnt) + '/mes') : '') +
+            (B.vac ? row('Vacancia', B.vac + '%') : '') +
+            (B.ibi ? row('IBI anual', moneyD(B.ibi)) : '') +
+            (B.com ? row('Comunidad anual', moneyD(B.com)) : '');
+        })()) : '') +
       '</div>' +
 
     '</div>' +
@@ -1009,18 +1084,33 @@ function renderAssetDetail(asset) {
   // Edición inline — sin popup
   var editBtn = el.querySelector('[data-action="edit-asset"]');
   if (editBtn) editBtn.addEventListener('click', function() { renderAssetEditInline(asset); });
+
+  // Guardar análisis actual en la ficha
+  var saveAnalysisBtn = el.querySelector('[data-action="save-analysis"]');
+  if (saveAnalysisBtn) saveAnalysisBtn.addEventListener('click', function() {
+    window.saveAnalysisToAsset(asset.id);
+  });
 }
 
 // Fuente de verdad única: asset → estados S/F/B → todas las pestañas
-// S.pc = precio compra, F.sup = superficie (únicos campos que existen en los calculadores)
+// Si el asset tiene análisis guardado, lo restaura completo; si no, usa precio/superficie.
 function populateCalculatorsFromAsset(asset) {
-  if (window.S && asset.price) window.S.pc = Math.round(asset.price);
-  if (window.F) {
-    // Auto-rellenar la pestaña Flip con la estimación (superficie, reforma por estado, venta)
-    var fp = flipFromAsset(asset);
-    if (fp.sup) window.F.sup = fp.sup;
-    window.F.rm2 = fp.rm2;
-    if (fp.pv)  window.F.pv  = fp.pv;
+  if (asset.analisis) {
+    // Restaurar análisis completo guardado
+    if (window.S && asset.analisis.S) Object.assign(window.S, asset.analisis.S);
+    if (window.F && asset.analisis.F) Object.assign(window.F, asset.analisis.F);
+    if (window.B && asset.analisis.B) Object.assign(window.B, asset.analisis.B);
+    if (asset.analisis.CATS && asset.analisis.CATS.length) window.CATS = asset.analisis.CATS;
+    if (asset.analisis.presupuesto) window._presupuestoTotal = asset.analisis.presupuesto;
+  } else {
+    // Fallback: poblar solo con precio y superficie del anuncio
+    if (window.S && asset.price) window.S.pc = Math.round(asset.price);
+    if (window.F) {
+      var fp = flipFromAsset(asset);
+      if (fp.sup) window.F.sup = fp.sup;
+      window.F.rm2 = fp.rm2;
+      if (fp.pv)  window.F.pv  = fp.pv;
+    }
   }
 
   // Re-renderizar todas las pestañas de análisis
@@ -1249,6 +1339,60 @@ async function syncDashboardFromGitHub() {
 
   if (btn) { btn.textContent = 'GitHub'; btn.disabled = false; }
 }
+
+// ── GUARDAR ANÁLISIS EN FICHA ─────────────────────────────────────────────────
+
+window.saveAnalysisToAsset = async function(assetId) {
+  var assets = getDashboardAssets();
+  var asset = assets.find(function(a) { return a.id === assetId; });
+  if (!asset) { showDashToast('Activo no encontrado', false); return; }
+
+  // Capturar estado actual de los calculadores
+  var S = Object.assign({}, window.S || {});
+  var F = Object.assign({}, window.F || {});
+  var B = Object.assign({}, window.B || {});
+  var CATS = window.CATS ? window.CATS.map(function(c) {
+    return { n: c.n, open: c.open, items: (c.items || []).map(function(i) {
+      return { d: i.d, u: i.u, q: i.q, p: i.p, on: i.on, ref: i.ref || '' };
+    })};
+  }) : [];
+  var presupuesto = window._presupuestoTotal || 0;
+
+  // Calcular resultados con los valores actuales
+  var resF = { rc: 0, mn: 0, ra: 0, tot: 0, cr: 0 };
+  var resB = { rn: 0, rb: 0, coc: 0, bn: 0, cf: 0, tot: 0 };
+  try { var r1 = window.cF(S, F); resF = { rc: +(r1.rc||0).toFixed(2), mn: Math.round(r1.mn||0), ra: +(r1.ra||0).toFixed(2), tot: Math.round(r1.tot||0), cr: Math.round(r1.cr||0) }; } catch(e) {}
+  try { var r2 = window.cB(S, B); resB = { rn: +(r2.rn||0).toFixed(2), rb: +(r2.rb||0).toFixed(2), coc: +(r2.coc||0).toFixed(2), bn: Math.round(r2.bn||0), cf: Math.round(r2.cf||0), tot: Math.round(r2.tot||0) }; } catch(e) {}
+
+  var updatedAsset = Object.assign({}, asset, {
+    lastUpdated: todayISO(),
+    // Sincronizar campos básicos desde el calculador
+    price:   S.pc   || asset.price,
+    surface: F.sup  || asset.surface,
+    analisis: {
+      S: S, F: F, B: B,
+      CATS: CATS,
+      presupuesto: presupuesto,
+      resultado: { flip: resF, btr: resB },
+      savedAt: new Date().toISOString()
+    }
+  });
+
+  // Actualizar memoria local
+  saveDashboardAssets(assets.map(function(a) { return a.id === assetId ? updatedAsset : a; }));
+
+  // Guardar en GitHub
+  if (typeof window.githubSaveDashboardAsset === 'function') {
+    var result = await window.githubSaveDashboardAsset(updatedAsset);
+    if (!result.ok) {
+      showDashToast('Error guardando en GitHub: ' + (result.reason || ''), false);
+      return;
+    }
+  }
+
+  showDashToast('Análisis guardado en la ficha ✓', true);
+  renderAssetDetail(updatedAsset);
+};
 
 // ── PUBLIC API ────────────────────────────────────────────────────────────────
 
