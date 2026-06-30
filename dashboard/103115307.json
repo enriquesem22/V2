@@ -35,7 +35,8 @@
       "_direccion": "Piso en venta en Calle Viver",
       "_cp": "M198787",
       "_habs": 3,
-      "_estado": "buen estado"
+      "_estado": "buen estado",
+      "_ascensor": false
     },
     "F": {
       "sup": 55,
@@ -43,7 +44,7 @@
       "ct": 15,
       "ind": 2000,
       "pl": 8,
-      "pv": 161808,
+      "pv": 180000,
       "gv": 4
     },
     "B": {
@@ -493,9 +494,9 @@
     "presupuesto": 27390,
     "resultado": {
       "flip": {
-        "rc": -5.28,
-        "mn": -4018,
-        "ra": -7.82,
+        "rc": 17.68,
+        "mn": 13446,
+        "ra": 27.66,
         "tot": 159354,
         "cr": 27390
       },
@@ -508,6 +509,6 @@
         "tot": 160964
       }
     },
-    "savedAt": "2026-06-30T19:45:28.625Z"
+    "savedAt": "2026-06-30T19:47:46.501Z"
   }
 }
