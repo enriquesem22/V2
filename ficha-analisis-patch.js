@@ -4,7 +4,7 @@
 (function(){
   'use strict';
 
-  window.RETURN_FICHA_ANALISIS_VERSION = '2.40';
+  window.RETURN_FICHA_ANALISIS_VERSION = '2.41';
 
   // ── 0) Fuente de verdad única: si el activo tiene análisis guardado, todas las vistas
   //    (tabla del dashboard, tarjeta de la ficha, etc.) usan ESOS números, no la estimación. ──
@@ -23,6 +23,62 @@
     return (typeof oldInvestmentFromAsset === 'function') ? oldInvestmentFromAsset(asset) : null;
   };
 
+  // ── 0b) Tabla del dashboard: usar la MISMA fuente y el MISMO formato que la ficha ──
+  // (renderRow del unify-patch llamaba a su investmentFromAsset interno y redondeaba el ROI
+  //  Flip a entero; aquí usamos window.investmentFromAsset y 1 decimal, igual que la ficha.)
+  function pctF(v){ return isFinite(v) ? (Math.round(v * 10) / 10).toFixed(1) + '%' : '—'; }
+  function euroF(v){
+    if (typeof window.ef === 'function') return window.ef(v);
+    return isFinite(v) ? new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(Math.round(v)) + ' €' : '—';
+  }
+  function escF(s){
+    if (typeof window.escD === 'function') return window.escD(s);
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(m){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]; });
+  }
+  function colF(v, good, mid){ return v >= good ? '#16a34a' : v >= mid ? '#d97706' : '#dc2626'; }
+
+  window.renderRow = function(asset, i){
+    var inv = window.investmentFromAsset(asset) || {};
+    var flip = inv.flip, btr = inv.btr;
+    var pm2 = (asset.price && asset.surface) ? Math.round(asset.price / asset.surface).toLocaleString('es-ES') + ' €/m²' : '—';
+
+    var flipCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+    if (flip && isFinite(flip.rc)) {
+      flipCell = '<div style="font-size:13px;font-weight:600;color:' + colF(flip.rc, 25, 15) + ';line-height:1.2">' + pctF(flip.rc) + '</div>' +
+        '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + euroF(flip.mn) + '</div>';
+    }
+
+    var btrCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+    if (btr) {
+      var metric = inv.s && inv.s.fin ? btr.coc : btr.rn;
+      btrCell = '<div style="font-size:13px;font-weight:600;color:' + colF(metric, 7, 5) + ';line-height:1.2">' + pctF(metric) + '</div>' +
+        '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + euroF(btr.bn) + '/año</div>';
+    }
+
+    var btnAnalyze = '<button data-action="analyze-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #16a34a;border-radius:5px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-family:inherit">Ficha</button>';
+    var btnDel = '<button data-action="delete-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #fca5a5;border-radius:5px;background:#fef2f2;color:#dc2626;cursor:pointer;font-size:11px;font-family:inherit">×</button>';
+    var photos = Array.isArray(asset.foto_urls) ? asset.foto_urls : [];
+    var thumbSrc = asset.foto_portada || (photos.length ? photos[0] : '');
+    var thumbHtml = thumbSrc && typeof window.mkImg === 'function' ? window.mkImg(thumbSrc, 'width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e5e5e0;flex-shrink:0;display:block') : '';
+
+    return '<tr style="background:' + (i % 2 ? '#fafaf8' : '#fff') + ';border-top:1px solid #f0f0ea">' +
+      '<td style="padding:8px;text-align:center">' + (typeof window.prioBadge==='function'?window.prioBadge(asset.priority):escF(asset.priority||'')) + '</td>' +
+      '<td style="padding:8px">' + (typeof window.stageBadge==='function'?window.stageBadge(asset.stage):escF(asset.stage||'')) + '</td>' +
+      '<td style="padding:8px;font-size:11px;color:#ba7517;font-weight:500">' + escF(asset.source || '—') + '</td>' +
+      '<td style="padding:8px;min-width:190px"><div style="display:flex;align-items:center;gap:8px">' + thumbHtml + '<div>' +
+      '<div data-action="analyze-asset" data-id="' + asset.id + '" style="font-weight:500;color:#ba7517;font-size:12px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" title="Abrir ficha">' + escF(asset.title || asset.address || '—') + '</div>' +
+      '<div style="color:#aaa;font-size:10px;margin-top:2px">' + escF(asset.city || '') + (asset.neighborhood ? ' · ' + escF(asset.neighborhood) : '') + (asset.surface ? ' · ' + asset.surface + ' m²' : '') + (asset.rooms ? ' · ' + asset.rooms + ' hab.' : '') + '</div>' +
+      (asset.url ? '<a href="' + escF(asset.url) + '" target="_blank" rel="noopener" style="font-size:10px;color:#ba7517;text-decoration:none">Ver anuncio ↗</a>' : '') +
+      '</div></div></td>' +
+      '<td style="padding:8px;text-align:right;font-family:\'Courier New\',monospace;font-weight:600;white-space:nowrap">' + euroF(asset.price) + '</td>' +
+      '<td style="padding:8px;text-align:right;font-family:\'Courier New\',monospace;color:#888;font-size:11px">' + pm2 + '</td>' +
+      '<td style="padding:8px;text-align:center">' + flipCell + '</td>' +
+      '<td style="padding:8px;text-align:center">' + btrCell + '</td>' +
+      '<td style="padding:8px;text-align:center;white-space:nowrap"><div style="display:flex;gap:4px;justify-content:center">' + btnAnalyze + btnDel + '</div></td>' +
+      '</tr>';
+  };
+
   // ── 1) Al poblar los calculadores desde un activo, si tiene análisis guardado, restaurarlo ──
   var oldPopulate = window.populateCalculatorsFromAsset;
   window.populateCalculatorsFromAsset = function(asset){
@@ -37,7 +93,8 @@
       if (window.F && an.F) Object.assign(window.F, an.F);
       if (window.B && an.B) Object.assign(window.B, an.B);
       if (an.CATS && an.CATS.length) window.CATS = an.CATS;
-      if (an.presupuesto) window._presupuestoTotal = an.presupuesto;
+      // Fijar siempre el presupuesto guardado (null si no había) para no heredar el de otro activo
+      window._presupuestoTotal = an.presupuesto || null;
       ['rSI','rSR','rFI','rFR','rBI','rBR','rPresupuesto'].forEach(function(fn){
         if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
       });
