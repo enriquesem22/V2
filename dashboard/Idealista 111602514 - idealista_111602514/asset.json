@@ -25,5 +25,8 @@
   "imageSource": "Idealista",
   "imageSavedAt": "",
   "notes": "Ficha creada desde enlace de Idealista 111602514, pero no se ha podido verificar el contenido del anuncio desde el acceso disponible. No hay datos fiables de precio, superficie, habitaciones, ciudad, barrio, estado ni coordenadas. Precio euros/m2 no calculable. Puntos fuertes: pendiente de analizar cuando se aporte captura o texto del anuncio. Riesgos: no se puede validar si está ocupado, si tiene cargas, si es VPO, estado real, planta, ascensor, anunciante ni descripción. Datos pendientes: título/calle, ciudad, barrio/zona, precio, m2, habitaciones, estado, planta, ascensor, descripción, referencia, anunciante y coordenadas. Recomendación: enviar captura o copiar el texto completo del anuncio para actualizar la ficha y valorar si encaja para flip o inversión. Coordenadas no disponibles; no se han estimado para evitar inventar ubicación.",
-  "createdAt": "2026-06-26"
+  "createdAt": "2026-06-26",
+  "foto_portada": "",
+  "foto_urls": [],
+  "ref_code": ""
 }
