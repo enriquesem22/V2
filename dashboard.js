@@ -220,29 +220,51 @@ function renderPipeline(assets) {
 function renderRow(asset, i) {
   var pm2 = (asset.price && asset.surface) ? Math.round(asset.price / asset.surface).toLocaleString('es-ES') + ' €/m²' : '—';
 
-  // Flip cell (misma fórmula que la pestaña Flip)
-  var flip = flipResult(asset);
+  // Indicador de dato real guardado vs estimación automática
+  var hasSaved = asset.analisis && asset.analisis.resultado;
+  var savedDot = '<span title="Análisis guardado en la ficha" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-left:4px;vertical-align:middle"></span>';
+
+  // Flip cell — prioriza el análisis guardado; si no, estimación automática
   var flipCell;
-  if (flip && isFinite(flip.rc)) {
-    var roi = Math.round(flip.rc);
-    var roiColor = roi >= 25 ? '#16a34a' : roi >= 15 ? '#d97706' : '#dc2626';
+  var savedFlip = hasSaved && isFinite(asset.analisis.resultado.flip && asset.analisis.resultado.flip.rc) ? asset.analisis.resultado.flip : null;
+  if (savedFlip) {
+    var roiS = Math.round(savedFlip.rc);
+    var roiColorS = roiS >= 20 ? '#16a34a' : roiS >= 10 ? '#d97706' : '#dc2626';
     flipCell =
-      '<div style="font-size:13px;font-weight:600;color:' + roiColor + ';line-height:1.2">' + roi + '%</div>' +
-      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(Math.round(flip.mn)) + '</div>';
+      '<div style="font-size:13px;font-weight:600;color:' + roiColorS + ';line-height:1.2">' + roiS + '%' + savedDot + '</div>' +
+      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(Math.round(savedFlip.mn)) + '</div>';
   } else {
-    flipCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+    var flip = flipResult(asset);
+    if (flip && isFinite(flip.rc)) {
+      var roi = Math.round(flip.rc);
+      var roiColor = roi >= 25 ? '#16a34a' : roi >= 15 ? '#d97706' : '#dc2626';
+      flipCell =
+        '<div style="font-size:13px;font-weight:600;color:' + roiColor + ';line-height:1.2" title="Estimación automática">' + roi + '%</div>' +
+        '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(Math.round(flip.mn)) + '</div>';
+    } else {
+      flipCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+    }
   }
 
-  // BTR cell
-  var btr = calcBTR(asset);
+  // BTR cell — prioriza el análisis guardado (yield neta); si no, estimación
   var btrCell;
-  if (btr) {
-    var btrColor = btr.roi >= 4 ? '#16a34a' : btr.roi >= 2.5 ? '#d97706' : '#dc2626';
+  var savedBtr = hasSaved && isFinite(asset.analisis.resultado.btr && asset.analisis.resultado.btr.rn) ? asset.analisis.resultado.btr : null;
+  if (savedBtr) {
+    var rnS = savedBtr.rn;
+    var btrColorS = rnS >= 7 ? '#16a34a' : rnS >= 5 ? '#d97706' : '#dc2626';
     btrCell =
-      '<div style="font-size:13px;font-weight:600;color:' + btrColor + ';line-height:1.2">' + btr.roi + '%</div>' +
-      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(btr.annualNet) + '/año</div>';
+      '<div style="font-size:13px;font-weight:600;color:' + btrColorS + ';line-height:1.2">' + rnS.toFixed(1) + '%' + savedDot + '</div>' +
+      '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(savedBtr.bn) + '/año</div>';
   } else {
-    btrCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+    var btr = calcBTR(asset);
+    if (btr) {
+      var btrColor = btr.roi >= 4 ? '#16a34a' : btr.roi >= 2.5 ? '#d97706' : '#dc2626';
+      btrCell =
+        '<div style="font-size:13px;font-weight:600;color:' + btrColor + ';line-height:1.2" title="Estimación automática">' + btr.roi + '%</div>' +
+        '<div style="font-size:10px;color:#888;font-family:\'Courier New\',monospace">' + moneyD(btr.annualNet) + '/año</div>';
+    } else {
+      btrCell = '<span style="color:#d1d5db;font-size:11px">—</span>';
+    }
   }
 
   var btnAnalyze = '<button data-action="analyze-asset" data-id="' + asset.id + '" style="padding:4px 7px;border:1px solid #16a34a;border-radius:5px;background:#f0fdf4;color:#15803d;cursor:pointer;font-size:11px;font-family:inherit">Ficha</button>';
@@ -309,7 +331,11 @@ function renderTable(assets, showArchived) {
       '</div>';
   }
 
-  var html = '<div style="overflow-x:auto;border:1px solid #e5e5e0;border-radius:12px;margin-top:16px">' +
+  var html = '<div style="font-size:10px;color:#aaa;margin-top:16px;margin-bottom:6px;display:flex;align-items:center;gap:5px">' +
+    '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a"></span>' +
+    'Flip/BTR con punto verde = análisis guardado en la ficha · sin punto = estimación automática' +
+    '</div>' +
+    '<div style="overflow-x:auto;border:1px solid #e5e5e0;border-radius:12px">' +
     '<table style="width:100%;border-collapse:collapse;font-size:11px">' + thead + '<tbody>' +
     sortAssets(active).map(function(a, i) { return renderRow(a, i); }).join('') +
     '</tbody></table></div>';
