@@ -4,7 +4,7 @@
 (function(){
   'use strict';
 
-  window.RETURN_FICHA_ANALISIS_VERSION = '2.41';
+  window.RETURN_FICHA_ANALISIS_VERSION = '2.42';
 
   // ── 0) Fuente de verdad única: si el activo tiene análisis guardado, todas las vistas
   //    (tabla del dashboard, tarjeta de la ficha, etc.) usan ESOS números, no la estimación. ──
@@ -26,7 +26,11 @@
   // ── 0b) Tabla del dashboard: usar la MISMA fuente y el MISMO formato que la ficha ──
   // (renderRow del unify-patch llamaba a su investmentFromAsset interno y redondeaba el ROI
   //  Flip a entero; aquí usamos window.investmentFromAsset y 1 decimal, igual que la ficha.)
-  function pctF(v){ return isFinite(v) ? (Math.round(v * 10) / 10).toFixed(1) + '%' : '—'; }
+  // Mismo formato exacto que la ficha (app.js: ep = n.toFixed(1)+'%')
+  function pctF(v){
+    if (typeof window.ep === 'function') return window.ep(v);
+    return (isFinite(v) && !isNaN(v)) ? v.toFixed(1) + '%' : '—';
+  }
   function euroF(v){
     if (typeof window.ef === 'function') return window.ef(v);
     return isFinite(v) ? new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(Math.round(v)) + ' €' : '—';
@@ -95,10 +99,14 @@
       if (an.CATS && an.CATS.length) window.CATS = an.CATS;
       // Fijar siempre el presupuesto guardado (null si no había) para no heredar el de otro activo
       window._presupuestoTotal = an.presupuesto || null;
-      ['rSI','rSR','rFI','rFR','rBI','rBR','rPresupuesto'].forEach(function(fn){
-        if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
-      });
+    } else {
+      // Sin análisis guardado: misma base que la estimación de la tabla (sin presupuesto detallado)
+      window._presupuestoTotal = null;
     }
+    // Re-render para que la ficha refleje exactamente la base usada por la tabla
+    ['rSI','rSR','rFI','rFR','rBI','rBR','rPresupuesto'].forEach(function(fn){
+      if (typeof window[fn] === 'function') { try { window[fn](); } catch(e) {} }
+    });
   };
 
   // ── 2) Inyectar la tarjeta con el botón de guardar (sobrevive al rewrite de los otros patches) ──
