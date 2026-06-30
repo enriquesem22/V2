@@ -4,7 +4,7 @@
 (function(){
   'use strict';
 
-  window.RETURN_FICHA_ANALISIS_VERSION = '2.43';
+  window.RETURN_FICHA_ANALISIS_VERSION = '2.44';
 
   // ── 0) Fuente de verdad única: si el activo tiene análisis guardado, todas las vistas
   //    (tabla del dashboard, tarjeta de la ficha, etc.) usan ESOS números, no la estimación. ──
@@ -117,6 +117,10 @@
 
     var prev = document.getElementById('ficha-analisis-card');
     if (prev) prev.remove();
+
+    // El botón de editar ahora vive en la fila de pestañas: ocultar el duplicado del header
+    var headerEditBtn = root.querySelector('[data-action="edit-asset"]');
+    if (headerEditBtn) headerEditBtn.style.display = 'none';
 
     // Localizar la tarjeta de inversión para insertar la nuestra justo debajo
     var card = null;
@@ -262,6 +266,7 @@
     }
     renderFichaEditForm(asset);
     buildEditBar();
+    updateEditTabButton();
   }
   window.enterFichaEdit = enterFichaEdit;
 
@@ -320,7 +325,9 @@
 
     // 5) Salir del modo edición y mostrar la ficha actualizada
     window._fichaEdit = { on:false, asset:null };
+    window._currentFichaAsset = merged;
     removeEditBar();
+    updateEditTabButton();
     var adpTab = document.querySelector('.tab[data-tab="adp"]');
     if (adpTab) { var tl = (merged.title || merged.address || 'Ficha').substring(0,22); if (merged.ref_code) tl += ' · ' + merged.ref_code; adpTab.textContent = tl; }
     if (typeof window.renderAssetDetail === 'function') window.renderAssetDetail(merged);
@@ -333,6 +340,7 @@
     var asset = stt.asset;
     window._fichaEdit = { on:false, asset:null };
     removeEditBar();
+    updateEditTabButton();
     // Revertir los calculadores al estado guardado del activo
     if (typeof window.populateCalculatorsFromAsset === 'function') {
       try { window.populateCalculatorsFromAsset(asset); } catch(e) {}
@@ -343,5 +351,84 @@
   // Redirigir TODOS los puntos de edición (header "Editar ficha", edición desde mapa/dashboard)
   // al modo edición global unificado.
   window.renderAssetEditInline = function(asset){ enterFichaEdit(asset); };
+
+  // ══════════════════════════════════════════════════════════════════
+  // ── 5) BOTÓN ÚNICO DE EDICIÓN EN LA FILA DE PESTAÑAS ──
+  //    Visible en todas las pestañas de la ficha; alterna Editar / Guardar y salir.
+  // ══════════════════════════════════════════════════════════════════
+  function onEditTabClick(){
+    if (window._fichaEdit && window._fichaEdit.on) {
+      saveFichaEdit();
+    } else if (window._currentFichaAsset) {
+      enterFichaEdit(window._currentFichaAsset);
+    }
+  }
+
+  function ensureEditTabButton(){
+    var tabs = document.getElementById('main-tabs');
+    if (!tabs) return;
+    var btn = document.getElementById('tab-edit-ficha');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'tab-edit-ficha';
+      btn.type = 'button';
+      btn.style.cssText = 'margin-left:auto;padding:6px 14px;border-radius:7px;border:1px solid #ba7517;background:#fff;color:#ba7517;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;align-self:center';
+      btn.addEventListener('click', onEditTabClick);
+      tabs.appendChild(btn);
+    }
+    updateEditTabButton();
+  }
+
+  function updateEditTabButton(){
+    var btn = document.getElementById('tab-edit-ficha');
+    if (!btn) return;
+    if (window._fichaEdit && window._fichaEdit.on) {
+      btn.textContent = '✓ Guardar y salir';
+      btn.style.background = '#16a34a';
+      btn.style.color = '#fff';
+      btn.style.borderColor = '#16a34a';
+    } else {
+      btn.textContent = '✏️ Editar ficha';
+      btn.style.background = '#fff';
+      btn.style.color = '#ba7517';
+      btn.style.borderColor = '#ba7517';
+    }
+  }
+
+  function setEditTabVisible(show){
+    var btn = document.getElementById('tab-edit-ficha');
+    if (btn) btn.style.display = show ? '' : 'none';
+  }
+
+  // Mostrar el botón al abrir una ficha y recordar el activo actual
+  var oldOpenAssetDetail = window.openAssetDetail;
+  window.openAssetDetail = function(id){
+    var r = (typeof oldOpenAssetDetail === 'function') ? oldOpenAssetDetail.apply(this, arguments) : undefined;
+    try {
+      var asset = (typeof window.getDashboardAssets === 'function')
+        ? window.getDashboardAssets().find(function(a){ return a.id === id; })
+        : null;
+      if (asset) window._currentFichaAsset = asset;
+    } catch(e) {}
+    ensureEditTabButton();
+    setEditTabVisible(true);
+    return r;
+  };
+
+  // Ocultar el botón al volver al dashboard
+  var oldVolver = window.volverAlDashboard;
+  window.volverAlDashboard = function(){
+    setEditTabVisible(false);
+    window._currentFichaAsset = null;
+    return (typeof oldVolver === 'function') ? oldVolver.apply(this, arguments) : undefined;
+  };
+
+  var oldLoadDashboard = window.loadDashboard;
+  if (typeof oldLoadDashboard === 'function') {
+    window.loadDashboard = function(){
+      setEditTabVisible(false);
+      return oldLoadDashboard.apply(this, arguments);
+    };
+  }
 
 })();
